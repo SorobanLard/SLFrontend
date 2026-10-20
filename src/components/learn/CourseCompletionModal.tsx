@@ -35,12 +35,18 @@ export default function CourseCompletionModal({
       const confetti = (await import('canvas-confetti')).default;
       if (cancelled) return;
 
+      // Read confetti colors from CSS tokens so they respect dark mode
+      const style = getComputedStyle(document.documentElement);
+      const gold = style.getPropertyValue('--color-confetti-gold').trim() || '#f59e0b';
+      const green = style.getPropertyValue('--color-confetti-green').trim() || '#10b981';
+      const dark = style.getPropertyValue('--color-confetti-dark').trim() || '#0f172a';
+
       confetti({
         particleCount: 140,
         spread: 90,
         origin: { y: 0.6 },
         ticks: 200,
-        colors: ['#f59e0b', '#10b981', '#0f172a'],
+        colors: [gold, green, dark],
       });
     };
 
