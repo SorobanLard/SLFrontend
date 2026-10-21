@@ -23,6 +23,21 @@ export interface AddPaymentMethodModalProps {
 const FIELD_CLASS =
   'w-full rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 placeholder:text-ink-500 focus:border-sorobanlard-primary focus:outline-none focus:ring-2 focus:ring-sorobanlard-primary/30 disabled:bg-ink-50';
 
+/**
+ * Client-side validation for the cardholder name only. Card number, expiry and
+ * CVC are validated exclusively by Stripe Elements — we must not duplicate
+ * those rules here, or the two validators can disagree and show conflicting
+ * errors. This helper complements Stripe by catching the one field Stripe
+ * does not validate for us.
+ */
+function validateCardholderName(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return 'Enter the name printed on your card.';
+  if (trimmed.length < 2) return 'Cardholder name must be at least 2 characters.';
+  if (trimmed.length > 100) return 'Cardholder name must be 100 characters or fewer.';
+  return null;
+}
+
 /** Modal wrapper — mounts Stripe Elements only while it is open. */
 export function AddPaymentMethodModal({ open, onClose, onAdd }: AddPaymentMethodModalProps) {
   const titleId = useId();
@@ -105,6 +120,8 @@ function AddCardForm({ onAdd, onCancel, onSubmittingChange }: AddCardFormProps) 
   };
 
   const handleCardChange = (event: StripeCardElementChangeEvent) => {
+    // Stripe owns card-field validation; surface its message verbatim so the
+    // inline error always matches what Elements reports.
     setCardError(event.error ? event.error.message : null);
     setCardComplete(event.complete);
   };
@@ -114,9 +131,16 @@ function AddCardForm({ onAdd, onCancel, onSubmittingChange }: AddCardFormProps) 
     setFormError(null);
 
     const trimmedName = name.trim();
-    setNameError(trimmedName ? null : 'Enter the name printed on your card.');
-    if (!cardComplete) setCardError((prev) => prev ?? 'Enter your full card details.');
-    if (!trimmedName || !cardComplete) return;
+    const nextNameError = validateCardholderName(name);
+    setNameError(nextNameError);
+
+    // Only prompt for card details when Stripe has not already reported a
+    // specific error — avoids stacking a generic message on top of Stripe's.
+    if (!cardComplete && !cardError) {
+      setCardError('Enter your full card details.');
+    }
+
+    if (nextNameError || !cardComplete) return;
 
     const card = elements?.getElement(CardElement);
     if (!stripe || !card) {
@@ -132,7 +156,9 @@ function AddCardForm({ onAdd, onCancel, onSubmittingChange }: AddCardFormProps) 
         billing_details: { name: trimmedName },
       });
       if (error || !paymentMethod) {
-        setFormError(friendlyStripeError(error));
+        // Route Stripe's tokenisation error to the same inline slot as the
+        // live Elements error so both are shown consistently.
+        setCardError(friendlyStripeError(error));
         return;
       }
       await onAdd(paymentMethod);
@@ -171,6 +197,7 @@ function AddCardForm({ onAdd, onCancel, onSubmittingChange }: AddCardFormProps) 
               setName(event.target.value);
               if (nameError) setNameError(null);
             }}
+            onBlur={() => setNameError(validateCardholderName(name))}
             aria-invalid={Boolean(nameError)}
             aria-describedby={nameError ? `${fieldId}-name-error` : undefined}
             className={cn(FIELD_CLASS, nameError && 'border-rose-500')}
@@ -222,8 +249,8 @@ function AddCardForm({ onAdd, onCancel, onSubmittingChange }: AddCardFormProps) 
           isLoading={submitting}
           loadingText="Saving card…"
           disabled={!stripe || stripeUnavailable}
-          icon={<Lock className="h-4 w-4" aria-hidden="true" />}
         >
+          <Lock className="mr-2 h-4 w-4" aria-hidden="true" />
           Save card
         </Button>
       </div>
