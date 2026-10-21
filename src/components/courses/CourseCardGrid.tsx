@@ -37,6 +37,14 @@ function getColumnCount(width: number): number {
   return 1;
 }
 
+/**
+ * Responsive `sizes` hint for course thumbnails. Matches the grid breakpoints
+ * (1 / 2 / 4 columns) so next/image requests an appropriately sized source
+ * instead of the full-resolution original on small screens.
+ */
+const THUMBNAIL_SIZES =
+  '(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 25vw';
+
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export function CourseCardGrid({
@@ -159,6 +167,7 @@ export function CourseCardGrid({
                 key={course.id}
                 course={course}
                 priority={startIndex + index < aboveFoldCount}
+                imageSizes={THUMBNAIL_SIZES}
               />
             ))}
       </div>
