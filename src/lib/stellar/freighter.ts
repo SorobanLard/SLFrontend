@@ -23,15 +23,14 @@ export async function signTx(xdr: string, networkPassphrase: string): Promise<st
 }
 
 export async function signNonce(nonce: string, networkPassphrase: string): Promise<string> {
-  const { TransactionBuilder, BASE_FEE, Operation } = await import('@stellar/stellar-sdk');
+  const { TransactionBuilder, BASE_FEE, Operation, Account } = await import('@stellar/stellar-sdk');
   const address = await getUserAddress();
-  const dummy = {
-    accountId: () => address,
-    sequenceNumber: () => '0',
-    incrementSequenceNumber: () => {},
-  } as any;
 
-  const tx = new TransactionBuilder(dummy, { fee: BASE_FEE, networkPassphrase })
+  // A minimal sequence-0 account used only to build the nonce transaction;
+  // it is never submitted to the network, so the sequence number does not matter.
+  const dummyAccount = new Account(address, '0');
+
+  const tx = new TransactionBuilder(dummyAccount, { fee: BASE_FEE, networkPassphrase })
     .addOperation(Operation.manageData({ name: 'sorobanlard_nonce', value: Buffer.from(nonce) }))
     .setTimeout(30)
     .build();

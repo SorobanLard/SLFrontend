@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronRight, X, CheckCircle2, Circle } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronRight, X, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
 import type { StudentEnrollmentRow, StudentDetail } from '@/types';
+
+type SortKey = 'studentName' | 'courseTitle' | 'enrolledAt' | 'progressPercent' | 'lastActiveAt';
+type SortDir = 'asc' | 'desc';
 
 interface StudentTableProps {
   rows: StudentEnrollmentRow[];
@@ -20,6 +23,13 @@ interface StudentTableProps {
   onCloseDetail: () => void;
 }
 
+function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (column !== sortKey) return <ArrowUpDown className="ml-1 inline h-3 w-3 text-ink-300" />;
+  return sortDir === 'asc'
+    ? <ArrowUp className="ml-1 inline h-3 w-3 text-sorobanlard-primary" />
+    : <ArrowDown className="ml-1 inline h-3 w-3 text-sorobanlard-primary" />;
+}
+
 export function StudentTable({
   rows,
   courseOptions,
@@ -30,6 +40,55 @@ export function StudentTable({
   detailLoading,
   onCloseDetail,
 }: StudentTableProps) {
+  const [sortKey, setSortKey] = useState<SortKey>('enrolledAt');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  /** Memoised sort so re-renders caused by detail/loading don't re-sort the list */
+  const sortedRows = useMemo<StudentEnrollmentRow[]>(() => {
+    return [...rows].sort((a, b) => {
+      let aVal: string | number | null;
+      let bVal: string | number | null;
+
+      switch (sortKey) {
+        case 'studentName':
+          aVal = a.studentName?.toLowerCase() ?? '';
+          bVal = b.studentName?.toLowerCase() ?? '';
+          break;
+        case 'courseTitle':
+          aVal = a.courseTitle?.toLowerCase() ?? '';
+          bVal = b.courseTitle?.toLowerCase() ?? '';
+          break;
+        case 'enrolledAt':
+          aVal = a.enrolledAt ? new Date(a.enrolledAt).getTime() : 0;
+          bVal = b.enrolledAt ? new Date(b.enrolledAt).getTime() : 0;
+          break;
+        case 'progressPercent':
+          aVal = a.progressPercent;
+          bVal = b.progressPercent;
+          break;
+        case 'lastActiveAt':
+          aVal = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
+          bVal = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aVal === bVal) return 0;
+      const order = aVal < bVal ? -1 : 1;
+      return sortDir === 'asc' ? order : -order;
+    });
+  }, [rows, sortKey, sortDir]);
+
   return (
     <div className="flex gap-5 items-start">
 
@@ -60,23 +119,43 @@ export function StudentTable({
             <thead>
               <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs font-semibold text-ink-500">
                 <th className="px-5 py-3 w-8" aria-hidden="true" />
-                <th className="px-5 py-3">Student</th>
-                <th className="px-5 py-3 hidden sm:table-cell">Course</th>
-                <th className="px-5 py-3 hidden md:table-cell">Enrolled</th>
-                <th className="px-5 py-3">Progress</th>
-                <th className="px-5 py-3 hidden lg:table-cell">Last active</th>
+                <th className="px-5 py-3">
+                  <button type="button" onClick={() => handleSort('studentName')} className="flex items-center hover:text-ink-800">
+                    Student<SortIcon column="studentName" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-5 py-3 hidden sm:table-cell">
+                  <button type="button" onClick={() => handleSort('courseTitle')} className="flex items-center hover:text-ink-800">
+                    Course<SortIcon column="courseTitle" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-5 py-3 hidden md:table-cell">
+                  <button type="button" onClick={() => handleSort('enrolledAt')} className="flex items-center hover:text-ink-800">
+                    Enrolled<SortIcon column="enrolledAt" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-5 py-3">
+                  <button type="button" onClick={() => handleSort('progressPercent')} className="flex items-center hover:text-ink-800">
+                    Progress<SortIcon column="progressPercent" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-5 py-3 hidden lg:table-cell">
+                  <button type="button" onClick={() => handleSort('lastActiveAt')} className="flex items-center hover:text-ink-800">
+                    Last active<SortIcon column="lastActiveAt" sortKey={sortKey} sortDir={sortDir} />
+                  </button>
+                </th>
                 <th className="px-5 py-3 w-8" aria-hidden="true" />
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 && (
+              {sortedRows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-sm text-ink-400">
                     No students found.
                   </td>
                 </tr>
               )}
-              {rows.map((row, i) => (
+              {sortedRows.map((row, i) => (
                 <tr
                   key={`${row.studentId}-${row.courseId}`}
                   onClick={() => onRowClick(row.studentId)}

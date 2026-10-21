@@ -7,6 +7,9 @@ import { useSearchStore } from '@/lib/hooks/use-search-store';
 import { cn } from '@/lib/utils';
 import type { Course } from '@/types';
 
+/** Milliseconds to wait after the last keystroke before calling onSearch */
+const DEBOUNCE_MS = 350;
+
 const SAMPLE_CATEGORIES = [
   'Tailoring',
   'Baking',
@@ -66,6 +69,19 @@ export function SearchBar({
     removeSavedSearch,
   } = useSearchStore();
   const [localQuery, setLocalQuery] = useState(query);
+
+  // Debounce: fire onSearch only after the user pauses typing for DEBOUNCE_MS ms.
+  // This prevents a network request on every single keystroke.
+  const onSearchRef = useRef(onSearch);
+  onSearchRef.current = onSearch;
+  useEffect(() => {
+    const trimmed = localQuery.trim();
+    if (!trimmed) return;
+    const timer = setTimeout(() => {
+      onSearchRef.current?.(trimmed);
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [localQuery]);
 
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!localQuery.trim() || !showSuggestions) return [];
