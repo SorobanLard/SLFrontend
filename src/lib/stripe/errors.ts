@@ -1,4 +1,4 @@
-import type { StripeError } from '@stripe/stripe-js';
+import type { StripeDeclineCode, StripeErrorCode, StripeErrorType, TypedStripeError } from './types';
 
 /**
  * Stripe's raw messages are written for developers ("Your card was declined.")
@@ -7,7 +7,7 @@ import type { StripeError } from '@stripe/stripe-js';
  */
 
 /** Keyed on `error.decline_code` — only present when `code` is `card_declined`. */
-const DECLINE_MESSAGES: Record<string, string> = {
+const DECLINE_MESSAGES: Record<StripeDeclineCode, string> = {
   insufficient_funds:
     "Your card doesn't have enough funds for this purchase. Try another card or top up and retry.",
   lost_card:
@@ -33,7 +33,7 @@ const DECLINE_MESSAGES: Record<string, string> = {
 };
 
 /** Keyed on `error.code` — used when there is no more specific decline code. */
-const CODE_MESSAGES: Record<string, string> = {
+const CODE_MESSAGES: Record<StripeErrorCode, string> = {
   card_declined:
     'Your bank declined this payment. Contact your bank for details, or try a different card.',
   expired_card: 'This card has expired. Check the expiry date, or use a different card.',
@@ -56,10 +56,15 @@ const CODE_MESSAGES: Record<string, string> = {
     'Card payments are temporarily unavailable. Please try again later or contact support.',
 };
 
+/** Infrastructure error types that should never leak raw messages to the learner. */
+const INFRASTRUCTURE_ERROR_TYPES = new Set<StripeErrorType>([
+  'api_connection_error',
+  'api_error',
+  'authentication_error',
+]);
+
 const FALLBACK_MESSAGE =
   "We couldn't process your payment. Please check your details and try again — you have not been charged.";
-
-type PartialStripeError = Pick<StripeError, 'code' | 'decline_code' | 'type' | 'message'>;
 
 /**
  * Turn a Stripe error (or anything thrown by a payment handler) into learner-facing copy.
@@ -67,18 +72,21 @@ type PartialStripeError = Pick<StripeError, 'code' | 'decline_code' | 'type' | '
  * Never throws. Lookup order is `decline_code`, then `code`, then `type`. Validation
  * messages are passed through as written. Anything else, including non-object input,
  * gets the generic fallback.
+ *
+ * Accepts a {@link TypedStripeError} (with discriminated-union fields) or any unknown
+ * value so call-sites never need to pre-check before passing a caught exception.
  */
 export const friendlyStripeError = (error: unknown): string => {
   if (!error || typeof error !== 'object') return FALLBACK_MESSAGE;
 
-  const { code, decline_code: declineCode, type, message } = error as PartialStripeError;
+  const { code, decline_code: declineCode, type, message } = error as TypedStripeError;
 
   if (declineCode && DECLINE_MESSAGES[declineCode]) return DECLINE_MESSAGES[declineCode];
   if (code && CODE_MESSAGES[code]) return CODE_MESSAGES[code];
 
   // Config and connectivity problems are our fault, not the learner's — don't
   // leak "No such API key" or a raw request id into the form.
-  if (type === 'api_connection_error' || type === 'api_error' || type === 'authentication_error') {
+  if (type && INFRASTRUCTURE_ERROR_TYPES.has(type)) {
     return 'Card payments are temporarily unavailable. Please try again in a moment or contact support.';
   }
 
