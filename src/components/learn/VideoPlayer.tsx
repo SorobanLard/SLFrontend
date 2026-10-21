@@ -4,8 +4,8 @@ import React, {
   useRef, useState, useEffect, useCallback,
   forwardRef, useImperativeHandle
 } from 'react';
+import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
-import { VideoControls } from './VideoControls';
 import type { VideoQualityLevel, VideoQualities } from '@/types';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ const COMPLETION_THRESHOLD  = 0.95;   // 95 %
 const CAPTIONS_STORAGE_KEY = 'sorobanlard-captions-enabled';
 
 // ── Component ─────────────────────────────────────────────────────
-export const VideoPlayer = forwardRef<
+const VideoPlayerInner = forwardRef<
   HTMLVideoElement,
   VideoPlayerProps
 >(function VideoPlayerComponent({
@@ -222,13 +222,88 @@ export const VideoPlayer = forwardRef<
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
   }, []);
 
-  // ── Video event handlers ──────────────────────────────────────
-  const handleTimeUpdate = () => {
+  // ── Playback handlers ─────────────────────────────────────────
+  const togglePlayPause = useCallback(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (vid.paused) {
+      void vid.play();
+    } else {
+      vid.pause();
+    }
+  }, []);
+
+  const handleSeek = useCallback((time: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.currentTime = time;
+    setCurrentTime(time);
+  }, []);
+
+  const handleVolume = useCallback((v: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.volume = v;
+    setVolume(v);
+    setMuted(v === 0);
+  }, []);
+
+  const handleMute = useCallback(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.muted = !vid.muted;
+    setMuted(vid.muted);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void wrapper.requestFullscreen();
+    }
+  }, []);
+
+  const handleSpeedChange = useCallback((s: number) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.playbackRate = s;
+    setSpeed(s);
+  }, []);
+
+  const handleQualityChange = useCallback((level: VideoQualityLevel) => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    const nextSrc = level === 'auto' ? src : videoQualities?.[level];
+    if (!nextSrc) return;
+    pendingSeekRef.current = vid.currentTime;
+    pendingPlayRef.current = !vid.paused;
+    setQuality(level);
+    setActiveSrc(nextSrc);
+  }, [src, videoQualities]);
+
+  const pendingPlayRef = useRef(false);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    setDuration(vid.duration || 0);
+    if (pendingSeekRef.current != null) {
+      vid.currentTime = pendingSeekRef.current;
+      pendingSeekRef.current = null;
+    }
+    if (pendingPlayRef.current) {
+      pendingPlayRef.current = false;
+      void vid.play();
+    }
+    syncCaptionTrack();
+  }, [syncCaptionTrack]);
+
+  const handleTimeUpdate = useCallback(() => {
     const vid = videoRef.current;
     if (!vid) return;
     setCurrentTime(vid.currentTime);
-
-    // Completion detection
     if (
       !completedRef.current &&
       vid.duration > 0 &&
@@ -237,148 +312,47 @@ export const VideoPlayer = forwardRef<
       completedRef.current = true;
       onComplete?.();
     }
-  };
+  }, [onComplete]);
 
-  const handleLoadedMetadata = () => {
-    const vid = videoRef.current;
-    if (vid) setDuration(vid.duration);
-  };
+  const handleEnded = useCallback(() => {
+    setPlaying(false);
+    onEnded?.();
+  }, [onEnded]);
 
-  // Restore playback position + resume after a quality src switch
-  const handleCanPlay = useCallback(() => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    if (pendingSeekRef.current !== null) {
-      vid.currentTime = pendingSeekRef.current;
-      pendingSeekRef.current = null;
-    }
-    if (pendingPlayRef.current) {
-      pendingPlayRef.current = false;
-      vid.play().catch(() => {});
-    }
+  const handlePlay = useCallback(() => {
+    setPlaying(true);
+    resetControlsTimer();
+  }, [resetControlsTimer]);
+
+  const handlePause = useCallback(() => {
+    setPlaying(false);
+    setShowControls(true);
   }, []);
 
-  const handlePlay  = () => setPlaying(true);
-  const handlePause = () => {
-    setPlaying(false);
-    saveProgress(); // save on every pause
-  };
-  const handleWaiting = () => setBuffering(true);
-  const handlePlaying = () => setBuffering(false);
-  const handleEnded   = () => {
-    setPlaying(false);
-    saveProgress();
-    onEnded?.();
-  };
+  const handleWaiting = useCallback(() => setBuffering(true), []);
+  const handlePlaying = useCallback(() => setBuffering(false), []);
 
-  // ── Control callbacks (passed to VideoControls) ───────────────
-  const togglePlayPause = () => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    if (vid.paused) { vid.play(); } else { vid.pause(); }
-  };
-
-  const handleSeek = (secs: number) => {
-    const vid = videoRef.current;
-    if (vid) vid.currentTime = secs;
-  };
-
-  const handleVolume = (vol: number) => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    vid.volume = vol;
-    setVolume(vol);
-    if (vol > 0) setMuted(false);
-  };
-
-  const handleMute = () => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    vid.muted = !vid.muted;
-    setMuted(vid.muted);
-  };
-
-  const handleSpeed = (rate: number) => {
-    const vid = videoRef.current;
-    if (!vid) return;
-    vid.playbackRate = rate;
-    setSpeed(rate);
-  };
-
-  const handleSubtitles = () => setSubtitlesOn((s) => !s);
-
-  // ── Quality switching ─────────────────────────────────────────
-  // Ref to remember whether we should resume playback after a src switch
-  const pendingPlayRef = useRef(false);
-
-  const handleQualityChange = useCallback((q: VideoQualityLevel) => {
-    const vid = videoRef.current;
-    if (!vid) return;
-
-    // Resolve the URL for this quality level
-    const url =
-      q === 'auto'
-        ? src
-        : videoQualities?.[q as keyof VideoQualities] ?? src;
-
-    // Nothing to do if the src isn't actually changing
-    if (url === activeSrc && q === quality) return;
-
-    // Stash current position so we can restore it after the new src loads
-    pendingSeekRef.current = vid.currentTime;
-    const wasPlaying = !vid.paused;
-
-    setQuality(q);
-    setActiveSrc(url);
-
-    // The <video> src update + seek happens inside handleCanPlay below.
-    // Store wasPlaying in a ref so handleCanPlay can resume if needed.
-    pendingPlayRef.current = wasPlaying;
-  }, [src, videoQualities, activeSrc, quality]);
-
-  const toggleFullscreen = async () => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    if (!document.fullscreenElement) {
-      await wrapper.requestFullscreen().catch(() => {});
-    } else {
-      await document.exitFullscreen().catch(() => {});
-    }
-  };
-
-  // ── Render ────────────────────────────────────────────────────
   return (
     <div
       ref={wrapperRef}
-      className={`relative group bg-black rounded-2xl overflow-hidden select-none ${className}`}
+      className={`relative group bg-black rounded-lg overflow-hidden ${className}`}
       onMouseMove={resetControlsTimer}
-      onMouseEnter={resetControlsTimer}
-      role="region"
-      aria-label="Video player"
-      // Let the wrapper receive keyboard events
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === ' ') e.preventDefault(); // prevent page scroll
-      }}
+      onMouseLeave={() => setShowControls(false)}
     >
-      {/* The actual <video> element */}
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- captions handled via <track> */}
       <video
         ref={videoRef}
         src={activeSrc}
-        className="lesson-caption-video w-full h-full"
-        preload="metadata"
+        className="w-full h-full"
         playsInline
-        onClick={togglePlayPause}
-        onTimeUpdate={handleTimeUpdate}
+        autoPlay={autoplay}
         onLoadedMetadata={handleLoadedMetadata}
-        onCanPlay={handleCanPlay}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleEnded}
         onPlay={handlePlay}
         onPause={handlePause}
         onWaiting={handleWaiting}
         onPlaying={handlePlaying}
-        onEnded={handleEnded}
-        {...({ controlsList: 'nodownload' } as React.VideoHTMLAttributes<HTMLVideoElement>)}
+        onClick={togglePlayPause}
       >
         {captionsUrl && (
           <track
@@ -386,62 +360,59 @@ export const VideoPlayer = forwardRef<
             kind="subtitles"
             src={captionsUrl}
             srcLang="en"
-            label="English captions"
-            onLoad={syncCaptionTrack}
+            label="English"
+            default={subtitlesOn}
           />
         )}
       </video>
-      <style>{`
-        .lesson-caption-video::cue {
-          background: rgba(0, 0, 0, 0.82);
-          color: #fff;
-          font-family: Arial, sans-serif;
-          font-size: 1.05em;
-          font-weight: 600;
-          line-height: 1.35;
-          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
-        }
-      `}</style>
 
-      {/* Buffering spinner */}
       {buffering && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <Loader2 className="w-10 h-10 text-white/70 animate-spin" />
+          <Loader2 className="w-10 h-10 text-white animate-spin" />
         </div>
       )}
 
-      {/* Custom controls overlay */}
-      <div
-        data-controls
-        className={`transition-opacity duration-300 ${
-          showControls || !playing ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-      >
-        <VideoControls
-          playing={playing}
-          currentTime={currentTime}
-          duration={duration}
-          volume={volume}
-          muted={muted}
-          speed={speed}
-          subtitlesOn={subtitlesOn}
-          isFullscreen={isFullscreen}
-          hasCaptions={!!captionsUrl}
-          autoplay={autoplay}
-          onAutoplayChange={onAutoplayChange ?? (() => {})}
-          quality={quality}
-          videoQualities={videoQualities}
-          onQualityChange={handleQualityChange}
-          onPlayPause={togglePlayPause}
-          onSeek={handleSeek}
-          onVolume={handleVolume}
-          onMute={handleMute}
-          onSpeed={handleSpeed}
-          onSubtitles={handleSubtitles}
-          onFullscreen={toggleFullscreen}
-        />
-      </div>
+      <VideoControls
+        playing={playing}
+        currentTime={currentTime}
+        duration={duration}
+        volume={volume}
+        muted={muted}
+        speed={speed}
+        quality={quality}
+        videoQualities={videoQualities}
+        subtitlesOn={subtitlesOn}
+        isFullscreen={isFullscreen}
+        autoplay={autoplay}
+        visible={showControls}
+        onPlayPause={togglePlayPause}
+        onSeek={handleSeek}
+        onVolumeChange={handleVolume}
+        onMuteToggle={handleMute}
+        onSpeedChange={handleSpeedChange}
+        onQualityChange={handleQualityChange}
+        onSubtitlesToggle={() => setSubtitlesOn((v) => !v)}
+        onFullscreenToggle={toggleFullscreen}
+        onAutoplayChange={onAutoplayChange}
+      />
     </div>
   );
 });
 
+// ── Dynamic wrapper ───────────────────────────────────────────────
+// The player is a heavy client component; load it lazily so it does not
+// block the initial paint of the lesson sidebar. SSR is disabled because
+// the player relies on browser-only APIs (fullscreen, sessionStorage).
+const VideoPlayerLoading = () => (
+  <div className="flex items-center justify-center bg-black rounded-lg aspect-video">
+    <Loader2 className="w-10 h-10 text-white animate-spin" />
+  </div>
+);
+
+export const VideoPlayer = dynamic(
+  () => Promise.resolve({ default: VideoPlayerInner }),
+  {
+    ssr: false,
+    loading: VideoPlayerLoading,
+  }
+);
