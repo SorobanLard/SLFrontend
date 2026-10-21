@@ -1,4 +1,5 @@
 import type { PaymentMethod } from '@stripe/stripe-js';
+import type { StripeDeclineCode, StripeErrorCode } from './types';
 
 /**
  * Front-end-only stand-in for the confirmation step.
@@ -16,12 +17,15 @@ import type { PaymentMethod } from '@stripe/stripe-js';
 /**
  * Thrown by `simulatePaymentConfirmation` for a test card. Its `code` and `decline_code`
  * mirror the fields on a Stripe error, so `friendlyStripeError` handles both the same way.
+ *
+ * Using the discriminated-union literal types instead of plain `string` means the
+ * compiler will catch any mismatch between the test-card table and the message maps.
  */
 export class PaymentDeclinedError extends Error {
-  readonly code: string;
-  readonly decline_code?: string;
+  readonly code: StripeErrorCode;
+  readonly decline_code?: StripeDeclineCode;
 
-  constructor(code: string, declineCode?: string) {
+  constructor(code: StripeErrorCode, declineCode?: StripeDeclineCode) {
     super(`Payment failed: ${declineCode ?? code}`);
     this.name = 'PaymentDeclinedError';
     this.code = code;
@@ -30,7 +34,10 @@ export class PaymentDeclinedError extends Error {
 }
 
 /** https://docs.stripe.com/testing#declined-payments — keyed on the card's last4. */
-const TEST_CARD_OUTCOMES: Record<string, { code: string; declineCode?: string }> = {
+const TEST_CARD_OUTCOMES: Record<
+  string,
+  { code: StripeErrorCode; declineCode?: StripeDeclineCode }
+> = {
   '0002': { code: 'card_declined', declineCode: 'generic_decline' },
   '9995': { code: 'card_declined', declineCode: 'insufficient_funds' },
   '9987': { code: 'card_declined', declineCode: 'lost_card' },
