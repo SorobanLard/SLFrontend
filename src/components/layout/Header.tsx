@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
-import { useCartStore } from '@/lib/hooks/use-cart-store';
+import { useCartStore, useCartHydrated } from '@/lib/hooks/use-cart-store';
 import {
   Bell,
   ChevronDown,
@@ -83,7 +83,9 @@ const NAV_LINKS = [
 
 export function Header() {
   const { isConnected, user, logout } = useAuthStore();
+  const cartHydrated = useCartHydrated();
   const cartCount = useCartStore((s) => s.getItemCount());
+  const displayCount = cartHydrated ? cartCount : 0;
   const pathname = usePathname();
 
   /** A nav link is current when it matches the route or one of its sub-routes. */
@@ -509,9 +511,9 @@ export function Header() {
                 href="/dashboard/courses"
                 className="relative rounded-lg p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
                 aria-label={
-                  cartCount === 1
+                  displayCount === 1
                     ? 'Shopping cart with 1 item'
-                    : `Shopping cart with ${cartCount} items`
+                    : `Shopping cart with ${displayCount} items`
                 }
               >
                 <ShoppingCart className="h-5 w-5" aria-hidden="true" />
@@ -525,14 +527,14 @@ export function Header() {
                   aria-atomic="true"
                   className={cn(
                     'items-center justify-center rounded-full text-[10px] font-bold text-white',
-                    cartCount > 0
+                    displayCount > 0
                       ? 'absolute -right-0.5 -top-0.5 flex h-4 w-4 bg-saffron-500'
                       : 'sr-only',
                   )}
                 >
-                  <span aria-hidden="true">{cartCount > 9 ? '9+' : cartCount}</span>
+                  <span aria-hidden="true">{displayCount > 9 ? '9+' : displayCount}</span>
                   <span className="sr-only">
-                    {cartCount === 1 ? '1 item in cart' : `${cartCount} items in cart`}
+                    {displayCount === 1 ? '1 item in cart' : `${displayCount} items in cart`}
                   </span>
                 </span>
               </Link>
@@ -841,14 +843,14 @@ export function Header() {
                   aria-atomic="true"
                   className={cn(
                     'items-center justify-center rounded-full text-xs font-bold text-white',
-                    cartCount > 0
+                    displayCount > 0
                       ? 'ml-auto flex h-5 w-5 bg-saffron-500'
                       : 'sr-only',
                   )}
                 >
-                  <span aria-hidden="true">{cartCount}</span>
+                  <span aria-hidden="true">{displayCount}</span>
                   <span className="sr-only">
-                    {cartCount === 1 ? '1 item in cart' : `${cartCount} items in cart`}
+                    {displayCount === 1 ? '1 item in cart' : `${displayCount} items in cart`}
                   </span>
                 </span>
               </Link>
