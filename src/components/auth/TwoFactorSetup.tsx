@@ -36,6 +36,13 @@ export function TwoFactorSetup() {
     }
   };
 
+  const handleCodeChange = (value: string) => {
+    // Restrict input to numeric characters only, capped at 6 digits.
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 6);
+    setCode(digitsOnly);
+    if (codeError) setCodeError('');
+  };
+
   const handleVerifyCode = async () => {
     setCodeError('');
 
@@ -172,13 +179,14 @@ export function TwoFactorSetup() {
             <input
               type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="one-time-code"
               maxLength={6}
               placeholder="000000"
               value={code}
-              onChange={(e) => {
-                setCode(e.target.value.replace(/\D/g, '').slice(0, 6));
-                if (codeError) setCodeError('');
-              }}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              aria-invalid={codeError ? true : undefined}
+              aria-describedby={codeError ? 'two-factor-code-error' : undefined}
               className={`w-full rounded-xl border px-4 py-3 text-center text-2xl font-semibold tracking-widest outline-none transition ${
                 codeError
                   ? 'border-red-400 bg-red-50/40'
@@ -187,7 +195,11 @@ export function TwoFactorSetup() {
               disabled={isLoading}
             />
             {codeError && (
-              <p className="flex items-center gap-1 text-xs text-red-600">
+              <p
+                id="two-factor-code-error"
+                role="alert"
+                className="flex items-center gap-1 text-xs text-red-600"
+              >
                 <AlertCircle className="h-3 w-3" />
                 {codeError}
               </p>
@@ -239,79 +251,66 @@ export function TwoFactorSetup() {
             </button>
           </div>
 
-          <p className="text-sm text-[#5A5578] mb-4">
-            Save these codes in a safe place. Each code can be used once if you lose access to your authenticator app.
-          </p>
-
-          <div className="space-y-2 bg-[#EEEDFE] p-4 rounded-[12px] max-h-48 overflow-y-auto">
-            {backupCodes.map((backupCode, idx) => (
-              <div
-                key={idx}
-                className="font-mono text-sm text-[#26215C] flex items-center gap-2"
-              >
-                <span className="text-[#7F77DD]">{idx + 1}.</span>
-                <span className={showBackupCodes ? '' : 'blur-sm'}>
-                  {backupCode}
-                </span>
-              </div>
-            ))}
+          <div className="rounded-[16px] border border-[#D3D0F2] bg-[#F8F7FF] p-4">
+            <div className="grid grid-cols-2 gap-2 font-mono text-sm text-[#26215C]">
+              {backupCodes.map((backupCode, index) => (
+                <div key={index} className="rounded bg-white px-3 py-2 text-center">
+                  {showBackupCodes ? backupCode : '••••••••'}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={downloadBackupCodes}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] px-6 py-3 text-sm font-semibold text-[#26215C] transition hover:bg-[#EEEDFE]"
-          >
-            <Download className="h-4 w-4" />
-            Download Codes
-          </button>
-
-          <button
-            onClick={copyBackupCodes}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] px-6 py-3 text-sm font-semibold text-[#26215C] transition hover:bg-[#EEEDFE]"
-          >
-            <Copy className="h-4 w-4" />
-            {copied ? 'Copied!' : 'Copy Codes'}
-          </button>
-
-          <button
-            onClick={handleDisable}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-300 px-6 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
-          >
-            Disable 2FA
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'error') {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-start gap-3 rounded-[16px] bg-red-50 p-4 border border-red-200">
-          <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-red-900">Setup Failed</p>
-            <p className="mt-1 text-sm text-red-700">
-              There was an error setting up two-factor authentication. Please try again.
-            </p>
+          <div className="mt-4 flex gap-3">
+            <button
+              type="button"
+              onClick={downloadBackupCodes}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] bg-white px-4 py-2.5 text-sm font-semibold text-[#26215C] transition hover:bg-[#EEEDFE]"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </button>
+            <button
+              type="button"
+              onClick={copyBackupCodes}
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] bg-white px-4 py-2.5 text-sm font-semibold text-[#26215C] transition hover:bg-[#EEEDFE]"
+            >
+              <Copy className="h-4 w-4" />
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
           </div>
         </div>
 
         <button
-          onClick={() => {
-            setStep('inactive');
-            setCode('');
-            setCodeError('');
-          }}
-          className="w-full rounded-xl bg-[#7F77DD] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#3C3489]"
+          type="button"
+          onClick={handleDisable}
+          disabled={isLoading}
+          className="w-full rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
         >
-          Try Again
+          {isLoading ? 'Disabling...' : 'Disable Two-Factor Authentication'}
         </button>
       </div>
     );
   }
 
-  return null;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 rounded-[16px] bg-red-50 p-4 border border-red-200">
+        <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="font-semibold text-red-900">Setup Failed</p>
+          <p className="mt-1 text-sm text-red-700">
+            We couldn't start two-factor authentication setup. Please try again.
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => setStep('inactive')}
+        className="w-full rounded-xl bg-[#7F77DD] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3C3489]"
+      >
+        Try Again
+      </button>
+    </div>
+  );
 }

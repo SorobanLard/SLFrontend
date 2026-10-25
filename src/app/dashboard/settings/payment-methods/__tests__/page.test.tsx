@@ -60,6 +60,12 @@ const renderPage = () =>
 
 const savedCards = () => within(screen.getByRole('list', { name: /saved cards/i })).getAllByRole('listitem');
 
+const openAddModal = async () => {
+  await screen.findByRole('list', { name: /saved cards/i });
+  fireEvent.click(screen.getAllByRole('button', { name: /add payment method/i })[0]);
+  return screen.getByRole('dialog', { name: /add payment method/i });
+};
+
 describe('PaymentMethodsPage', () => {
   beforeEach(() => {
     Object.values(api).forEach((fn) => fn.mockReset());
@@ -152,6 +158,59 @@ describe('PaymentMethodsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /save card/i }));
 
     expect(await within(dialog).findByText(/already saved/i)).toBeInTheDocument();
+    expect(api.add).not.toHaveBeenCalled();
+  });
+
+  it('shows an inline error and blocks submit when the cardholder name is empty', async () => {
+    renderPage();
+    const dialog = await openAddModal();
+
+    fireEvent.change(within(dialog).getByTestId('card-element'), { target: { value: 'complete' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /save card/i }));
+
+    expect(await within(dialog).findByText(/cardholder name is required/i)).toBeInTheDocument();
+    expect(createPaymentMethod).not.toHaveBeenCalled();
+    expect(api.add).not.toHaveBeenCalled();
+  });
+
+  it('shows an inline error and blocks submit when the cardholder name is too short', async () => {
+    renderPage();
+    const dialog = await openAddModal();
+
+    fireEvent.change(within(dialog).getByLabelText(/cardholder name/i), { target: { value: 'A' } });
+    fireEvent.change(within(dialog).getByTestId('card-element'), { target: { value: 'complete' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /save card/i }));
+
+    expect(await within(dialog).findByText(/at least 2 characters/i)).toBeInTheDocument();
+    expect(createPaymentMethod).not.toHaveBeenCalled();
+    expect(api.add).not.toHaveBeenCalled();
+  });
+
+  it('surfaces Stripe Elements validation when the card details are incomplete', async () => {
+    renderPage();
+    const dialog = await openAddModal();
+
+    fireEvent.change(within(dialog).getByLabelText(/cardholder name/i), { target: { value: 'Ada Tester' } });
+    fireEvent.change(within(dialog).getByTestId('card-element'), { target: { value: 'incomplete' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /save card/i }));
+
+    expect(await within(dialog).findByText(/card details are incomplete/i)).toBeInTheDocument();
+    expect(createPaymentMethod).not.toHaveBeenCalled();
+    expect(api.add).not.toHaveBeenCalled();
+  });
+
+  it('surfaces Stripe errors consistently alongside Zod errors', async () => {
+    createPaymentMethod.mockResolvedValue({
+      error: { type: 'card_error', message: 'Your card was declined.' },
+    });
+    renderPage();
+    const dialog = await openAddModal();
+
+    fireEvent.change(within(dialog).getByLabelText(/cardholder name/i), { target: { value: 'Ada Tester' } });
+    fireEvent.change(within(dialog).getByTestId('card-element'), { target: { value: 'complete' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /save card/i }));
+
+    expect(await within(dialog).findByText(/your card was declined/i)).toBeInTheDocument();
     expect(api.add).not.toHaveBeenCalled();
   });
 
