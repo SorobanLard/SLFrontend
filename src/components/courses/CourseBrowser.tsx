@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { Search } from 'lucide-react';
 import { coursesApi } from '@/lib/api/services';
 import { CourseCardGrid } from './CourseCardGrid';
@@ -13,6 +13,25 @@ const PAGE_SIZE = 8;
 interface Props {
   showFilters?: boolean;
 }
+
+// Memoized so the grid only re-renders when the course list actually changes,
+// not on every keystroke of the search input or filter dropdown change.
+const MemoizedCourseCardGrid = memo(CourseCardGrid);
+
+// Memoized "load more" skeleton row so it doesn't re-render with the grid.
+const LoadMoreSkeleton = memo(function LoadMoreSkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4"
+      aria-live="polite"
+      aria-label="Loading more courses"
+    >
+      {Array.from({ length: 4 }).map((_, i) => (
+        <CourseCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+});
 
 export function CourseBrowser({ showFilters = true }: Props) {
   const [courses,    setCourses]    = useState<Course[]>([]);
@@ -95,6 +114,10 @@ export function CourseBrowser({ showFilters = true }: Props) {
     hasMore,
   });
 
+  // Stable empty array so the skeleton grid doesn't get a new prop identity
+  // on every render while loading.
+  const emptyCourses = useMemo<Course[]>(() => [], []);
+
   return (
     <div>
       {showFilters && (
@@ -136,27 +159,17 @@ export function CourseBrowser({ showFilters = true }: Props) {
 
       {/* Initial load skeleton */}
       {loading ? (
-        <CourseCardGrid courses={[]} loading skeletons={PAGE_SIZE} />
+        <MemoizedCourseCardGrid courses={emptyCourses} loading skeletons={PAGE_SIZE} />
       ) : courses.length === 0 ? (
         <div className="text-center py-12 text-ink-400">
           <p className="text-sm">No courses found. Try a different search.</p>
         </div>
       ) : (
         <>
-          <CourseCardGrid courses={courses} />
+          <MemoizedCourseCardGrid courses={courses} />
 
           {/* "Load more" skeleton row — 4 cards wide */}
-          {loadingMore && (
-            <div
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4"
-              aria-live="polite"
-              aria-label="Loading more courses"
-            >
-              {Array.from({ length: 4 }).map((_, i) => (
-                <CourseCardSkeleton key={i} />
-              ))}
-            </div>
-          )}
+          {loadingMore && <LoadMoreSkeleton />}
 
           {/* End-of-list message */}
           {!hasMore && !loadingMore && (
