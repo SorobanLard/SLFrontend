@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   CheckCircle2, Circle, ChevronDown, ChevronRight,
   Download, Loader2, ArrowLeft, Award, SkipForward,
@@ -10,21 +11,24 @@ import Link from 'next/link';
 import { coursesApi, enrollmentsApi, lessonsApi } from '@/lib/api/services';
 import { formatDuration, cn } from '@/lib/utils';
 import CourseCompletionModal from '@/components/learn/CourseCompletionModal';
-import { VideoPlayer } from '@/components/learn/VideoPlayer';
 import { AutoplayCountdown } from '@/components/learn/AutoplayCountdown';
 import type { Course, Enrollment, Lesson } from '@/types';
 
+// ── Dynamic import: heavy client-only video player ─────────────────────────
+const VideoPlayer = dynamic(
+  () => import('@/components/learn/VideoPlayer').then((m) => m.VideoPlayer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex aspect-video w-full items-center justify-center rounded-xl bg-ink-900">
+        <Loader2 className="h-6 w-6 animate-spin text-saffron-500" />
+      </div>
+    ),
+  },
+);
+
 // ── Constants ──────────────────────────────────────────────────────────────
 const AUTOPLAY_STORAGE_KEY = 'sorobanlard:autoplay';
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-/** Returns the flat ordered list of all lessons across every module */
-function flatLessons(course: Course): Lesson[] {
-  return course.modules?.flatMap((m) => m.lessons) ?? [];
-}
-
-// ── Component ──────────────────────────────────────────────────────────────
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -203,294 +207,198 @@ export default function LearnPage() {
       {course && (
         <CourseCompletionModal
           open={showCompletionModal}
-          courseTitle={course.title}
-          courseId={course.id}
           onClose={() => setShowCompletionModal(false)}
+          courseTitle={course.title}
         />
       )}
 
-      {/* ── Lesson sidebar ──────────────────────────────────────────────── */}
-      <aside className="w-72 bg-white border-r border-ink-100 flex flex-col flex-shrink-0 overflow-y-auto">
-        {/* Header */}
-        <div className="p-4 border-b border-ink-100">
+      {/* ── Main content ─────────────────────────────────────────────── */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="flex items-center gap-3 border-b border-ink-100 px-4 py-3">
           <Link
             href={`/dashboard/courses/${id}`}
-            className="flex items-center gap-1.5 text-xs text-ink-400 hover:text-ink-700 mb-2 transition-colors"
+            className="flex items-center gap-1 text-sm text-ink-500 hover:text-ink-900"
           >
-            <ArrowLeft className="w-3 h-3" />
-            Back to overview
+            <ArrowLeft className="h-4 w-4" />
+            Back
           </Link>
-          <h2 className="text-sm font-semibold text-ink-900 line-clamp-2">{course.title}</h2>
-          <div className="mt-2.5">
-            <div className="flex justify-between text-xs text-ink-400 mb-1">
-              <span>{completedCount}/{totalLessons} lessons</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
+          <span className="text-sm font-medium text-ink-900">{course.title}</span>
         </div>
 
-        {/* Modules + lessons */}
-        <div className="flex-1">
-          {course.modules?.map((module, mi) => (
-            <div key={module.id} className="border-b border-ink-50">
-              <button
-                onClick={() =>
-                  setExpanded((p) => ({ ...p, [module.id]: !p[module.id] }))
-                }
-                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-ink-50 transition-colors"
-              >
-                <ArrowLeft className="w-3 h-3" />
-                Back to overview
-              </Link>
-              <h2 className="text-sm font-semibold text-ink-900 line-clamp-2">
-                {course.title}
-              </h2>
-              <div className="mt-2.5">
-                <div className="flex justify-between text-xs text-ink-400 mb-1">
-                  <span>
-                    {completedCount}/{totalLessons} lessons
-                  </span>
-                  <span>{progress}%</span>
-                </div>
-                <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                {expanded[module.id] ? (
-                  <ChevronDown className="w-3.5 h-3.5 text-ink-400" />
-                ) : (
-                  <ChevronRight className="w-3.5 h-3.5 text-ink-400" />
-                )}
-              </button>
-
-              {expanded[module.id] && (
-                <div className="pb-1">
-                  {module.lessons.map((lesson) => {
-                    const done   = isLessonCompleted(lesson.id);
-                    const active = activeLesson?.id === lesson.id;
-                    return (
-                      <button
-                        key={lesson.id}
-                        onClick={() => setActiveLesson(lesson)}
-                        className={cn(
-                          'w-full flex items-start gap-2.5 px-4 py-2.5 text-left transition-colors',
-                          active ? 'bg-saffron-50' : 'hover:bg-ink-50',
-                        )}
-                      >
-                        {done ? (
-                          <CheckCircle2 className="w-4 h-4 text-leaf-500 flex-shrink-0 mt-0.5" />
-                        ) : (
-                          <Circle
-                            className={cn(
-                              'w-4 h-4 flex-shrink-0 mt-0.5',
-                              active ? 'text-saffron-500' : 'text-ink-300',
-                            )}
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <p
-                            className={cn(
-                              'text-xs leading-snug',
-                              active
-                                ? 'font-semibold text-saffron-700'
-                                : done
-                                  ? 'text-ink-500'
-                                  : 'text-ink-700',
-                            )}
-                          >
-                            {lesson.title}
-                          </p>
-                          {lesson.videoDuration && (
-                            <p className="text-[10px] text-ink-400 mt-0.5">
-                              {formatDuration(lesson.videoDuration)}
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {sidebarTab === "notes" && activeLesson && (
-          <div className="flex-1 overflow-hidden">
-            <NotesPanel
-              courseId={id}
-              lectureId={activeLesson.id}
-              videoRef={videoRef}
-              courseTitle={course.title}
-              lectureTitle={activeLesson.title}
-            />
-          </div>
-        )}
-
-        {sidebarTab === "qa" && (
-          <div className="flex-1 flex items-center justify-center text-ink-400 px-4">
-            <div className="text-center">
-              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-xs">Q&A coming soon</p>
-            </div>
-          </div>
-        )}
-      </aside>
-
-      {/* ── Main lesson content ──────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-6">
         {activeLesson ? (
-          <div className="max-w-3xl mx-auto">
-            {/* Breadcrumb ÔÇö sits above the lesson content */}
-            <Breadcrumb
-              items={[
-                { label: "Dashboard", href: "/dashboard" },
-                { label: "My Courses", href: "/dashboard/courses" },
-                { label: course.title, href: `/dashboard/courses/${id}` },
-                { label: activeLesson.title },
-              ]}
-              className="mb-5"
+          <div className="flex-1 p-4">
+            <VideoPlayer
+              lesson={activeLesson}
+              onEnded={handleVideoEnded}
+              autoplay={autoplay}
+              onAutoplayChange={handleAutoplayChange}
             />
 
-            {/* Video */}
-            {activeLesson.videoUrl && (
-              <div className="relative aspect-video rounded-2xl overflow-hidden bg-black mb-5">
-                <VideoPlayer
-                  key={activeLesson.videoUrl}
-                  src={activeLesson.videoUrl}
-                  videoQualities={activeLesson.videoQualities}
-                  enrollmentId={enrollment?.id}
-                  lessonId={activeLesson.id}
-                  autoplay={autoplay}
-                  onAutoplayChange={handleAutoplayChange}
-                  onEnded={handleVideoEnded}
-                  className="w-full h-full"
-                />
-
-                {/* Autoplay countdown overlay */}
-                {showCountdown && nextLesson && (
-                  <AutoplayCountdown
-                    nextTitle={nextLesson.title}
-                    seconds={5}
-                    onComplete={goToNext}
-                    onCancel={cancelCountdown}
-                  />
+            <div className="mt-4 flex items-center justify-between">
+              <h1 className="text-lg font-semibold text-ink-900">{activeLesson.title}</h1>
+              <button
+                onClick={handleMarkComplete}
+                disabled={marking || isLessonCompleted(activeLesson.id)}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                  isLessonCompleted(activeLesson.id)
+                    ? 'bg-green-50 text-green-700'
+                    : 'bg-saffron-500 text-white hover:bg-saffron-600',
                 )}
-              </div>
-            )}
-
-            {/* Text content */}
-            {activeLesson.type === "TEXT" && activeLesson.content && (
-              <div className="card p-6 mb-5 prose prose-sm max-w-none">
-                <div
-                  dangerouslySetInnerHTML={{ __html: activeLesson.content }}
-                />
-              </div>
-            )}
-
-            {/* Quiz / assessment */}
-            {activeLesson.type === "QUIZ" && (
-              <div className="mb-5">
-                <QuizComponent
-                  questions={activeLesson.quiz ?? DEFAULT_QUIZ_QUESTIONS}
-                  onContinue={
-                    nextLesson ? () => selectLesson(nextLesson) : undefined
-                  }
-                />
-              </div>
-            )}
-
-            {/* Title + mark complete row */}
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h1 className="font-display text-xl font-semibold text-ink-900 mb-1">
-                  {activeLesson.title}
-                </h1>
-                {activeLesson.description && (
-                  <p className="text-sm text-ink-500">
-                    {activeLesson.description}
-                  </p>
+              >
+                {marking ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isLessonCompleted(activeLesson.id) ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <Circle className="h-4 w-4" />
                 )}
-              </div>
-
-              {!isLessonCompleted(activeLesson.id) ? (
-                <button
-                  onClick={handleMarkComplete}
-                  disabled={marking}
-                  className="btn-leaf flex-shrink-0 ml-4"
-                >
-                  {marking ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4" />
-                  )}
-                  Mark complete
-                </button>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-leaf-600 bg-leaf-50 px-3 py-1.5 rounded-xl">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Completed
-                </span>
-              )}
+                {isLessonCompleted(activeLesson.id) ? 'Completed' : 'Mark complete'}
+              </button>
             </div>
 
-            {/* Downloadable resource */}
-            {activeLesson.resourceUrl && (
-              <a
-                href={activeLesson.resourceUrl}
-                download
-                className="btn-secondary inline-flex mb-5"
-              >
-                <Download className="w-4 h-4" />
-                Download lesson resource
-              </a>
+            {activeLesson.description && (
+              <p className="mt-2 text-sm text-ink-500">{activeLesson.description}</p>
             )}
 
-            {/* Next lecture button (shown when autoplay is OFF and video has ended) */}
-            {!autoplay && nextLesson && !activeLesson.videoUrl && (
-              <div className="flex justify-end mb-5">
-                <button
-                  onClick={goToNext}
-                  className="btn-secondary inline-flex items-center gap-2"
-                >
-                  <SkipForward className="w-4 h-4" />
-                  Next lecture
-                </button>
-              </div>
-            )}
-
-            {/* Completion celebration */}
-            {progress === 100 && !showCompletionModal && (
-              <div className="card p-6 bg-gradient-to-br from-saffron-50 to-leaf-50 border-saffron-100 text-center">
-                <div className="text-4xl mb-3">­ƒÄô</div>
-                <h2 className="font-display text-xl font-semibold text-ink-900 mb-2">
-                  Course complete!
-                </h2>
-                <p className="text-sm text-ink-500 mb-4">
-                  You&apos;ve finished all lessons. Your certificate will be
-                  issued shortly.
-                </p>
-                <Link
-                  href="/dashboard/certificates"
-                  className="btn-primary inline-flex"
-                >
-                  <Award className="w-4 h-4" />
-                  View my certificates
-                </Link>
+            {activeLesson.resources && activeLesson.resources.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h2 className="text-sm font-semibold text-ink-900">Resources</h2>
+                {activeLesson.resources.map((r) => (
+                  <a
+                    key={r.id}
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-saffron-600 hover:underline"
+                  >
+                    <Download className="h-4 w-4" />
+                    {r.title}
+                  </a>
+                ))}
               </div>
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-ink-400">
-            <p className="text-sm">Select a lesson to start learning</p>
+          <div className="flex flex-1 items-center justify-center text-ink-500">
+            Select a lesson to begin.
           </div>
         )}
+
+        {showCountdown && nextLesson && (
+          <AutoplayCountdown
+            nextLessonTitle={nextLesson.title}
+            onComplete={goToNext}
+            onCancel={cancelCountdown}
+          />
+        )}
       </div>
+
+      {/* ── Sidebar ──────────────────────────────────────────────────── */}
+      <aside className="w-full shrink-0 border-t border-ink-100 md:w-80 md:border-l md:border-t-0">
+        <div className="border-b border-ink-100 p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-ink-900">Progress</span>
+            <span className="text-ink-500">{progress}%</span>
+          </div>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink-100">
+            <div
+              className="h-full rounded-full bg-saffron-500 transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="flex border-b border-ink-100">
+          <button
+            onClick={() => setSidebarTab('lessons')}
+            className={cn(
+              'flex-1 py-2 text-sm font-medium',
+              sidebarTab === 'lessons' ? 'text-saffron-600' : 'text-ink-500',
+            )}
+          >
+            Lessons
+          </button>
+          <button
+            onClick={() => setSidebarTab('resources')}
+            className={cn(
+              'flex-1 py-2 text-sm font-medium',
+              sidebarTab === 'resources' ? 'text-saffron-600' : 'text-ink-500',
+            )}
+          >
+            Resources
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-2">
+          {sidebarTab === 'lessons' &&
+            course.modules?.map((module) => (
+              <div key={module.id} className="mb-1">
+                <button
+                  onClick={() =>
+                    setExpanded((prev) => ({ ...prev, [module.id]: !prev[module.id] }))
+                  }
+                  className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-sm font-medium text-ink-900 hover:bg-ink-50"
+                >
+                  <span>{module.title}</span>
+                  {expanded[module.id] ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </button>
+                {expanded[module.id] && (
+                  <ul className="mt-1 space-y-1">
+                    {module.lessons.map((lesson) => (
+                      <li key={lesson.id}>
+                        <button
+                          onClick={() => setActiveLesson(lesson)}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm',
+                            activeLesson?.id === lesson.id
+                              ? 'bg-saffron-50 text-saffron-700'
+                              : 'text-ink-600 hover:bg-ink-50',
+                          )}
+                        >
+                          {isLessonCompleted(lesson.id) ? (
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
+                          ) : (
+                            <Circle className="h-4 w-4 shrink-0 text-ink-300" />
+                          )}
+                          <span className="flex-1 truncate">{lesson.title}</span>
+                          <span className="text-xs text-ink-400">
+                            {formatDuration(lesson.duration ?? 0)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+
+          {sidebarTab === 'resources' && (
+            <div className="p-2 text-sm text-ink-500">
+              {activeLesson?.resources && activeLesson.resources.length > 0 ? (
+                activeLesson.resources.map((r) => (
+                  <a
+                    key={r.id}
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 py-1 text-saffron-600 hover:underline"
+                  >
+                    <Download className="h-4 w-4" />
+                    {r.title}
+                  </a>
+                ))
+              ) : (
+                <p>No resources for this lesson.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
     </div>
   );
 }

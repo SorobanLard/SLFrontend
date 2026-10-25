@@ -1,16 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  TooltipProps,
-} from 'recharts';
+import dynamic from 'next/dynamic';
+import type { TooltipProps } from 'recharts';
 import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatUsdc } from '@/lib/utils';
@@ -80,6 +72,74 @@ function ChartSkeleton({ height = 300 }: { height: number }) {
   );
 }
 
+/**
+ * Recharts is heavy and only used by instructor dashboards. Loading it via
+ * next/dynamic keeps it out of the main (student) bundle and defers the
+ * download until the chart is actually rendered.
+ */
+const RevenueBarChart = dynamic(
+  () =>
+    import('recharts').then((recharts) => {
+      const {
+        BarChart,
+        Bar,
+        XAxis,
+        YAxis,
+        CartesianGrid,
+        Tooltip,
+        ResponsiveContainer,
+      } = recharts;
+
+      function RevenueBarChartInner({
+        data,
+        height,
+      }: {
+        data: RevenueData[];
+        height: number;
+      }) {
+        return (
+          <ResponsiveContainer width="100%" height={height}>
+            <BarChart data={data}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--color-border-default)"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+                tickLine={false}
+                axisLine={{ stroke: 'var(--color-border-default)' }}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+                tickLine={false}
+                axisLine={{ stroke: 'var(--color-border-default)' }}
+                tickFormatter={(value: number) => `$${(value / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                content={<CustomTooltip />}
+                cursor={{ fill: 'rgba(127, 119, 221, 0.05)' }}
+              />
+              <Bar
+                dataKey="revenue"
+                fill="var(--color-brand-primary)"
+                radius={[8, 8, 0, 0]}
+                maxBarSize={60}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      }
+
+      return RevenueBarChartInner;
+    }),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton height={300} />,
+  },
+);
+
 export function RevenueChart({
   data,
   isLoading = false,
@@ -141,6 +201,7 @@ export function RevenueChart({
           )}
         </div>
       )}
+      <RevenueBarChart data={chartData} height={height} />
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={chartData}>
           <CartesianGrid

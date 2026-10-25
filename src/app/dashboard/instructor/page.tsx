@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
@@ -14,6 +15,12 @@ import {
 } from 'lucide-react';
 import { usersApi, coursesApi } from '@/lib/api/services';
 import { CourseCard } from '@/components/courses/CourseCard';
+import {
+  RevenueDateRangePicker,
+  formatRangeLabel,
+  rangeForPreset,
+  type RevenueDateRange,
+} from '@/components/instructor/RevenueDateRangePicker';
 import { courseStatusBadge, formatUsdc } from '@/lib/utils';
 import type { Course } from '@/types';
 import type { RevenueDateRange } from '@/components/instructor/RevenueDateRangePicker';
@@ -33,6 +40,19 @@ const RevenueDateRangePicker = dynamic(
 );
 import { courseStatusBadge, formatUsdc } from '@/lib/utils';
 import type { Course } from '@/types';
+
+// Dynamically import the chart so the charting library is code-split out of the
+// main bundle and only loaded when the instructor dashboard renders the chart.
+const RevenueChart = dynamic(
+  () =>
+    import('@/components/instructor/RevenueChart').then((m) => m.RevenueChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[350px] w-full animate-pulse rounded-xl bg-ink-50" />
+    ),
+  }
+);
 
 export default function InstructorDashboardPage() {
   const [stats, setStats] = useState<any>(null);
@@ -243,6 +263,7 @@ function generateRevenueData(from: string, to: string) {
       revenue,
       date: cursor.toISOString(),
     });
+
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
