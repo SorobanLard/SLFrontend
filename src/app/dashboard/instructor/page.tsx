@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   Plus,
   Users,
@@ -13,13 +14,23 @@ import {
 } from 'lucide-react';
 import { usersApi, coursesApi } from '@/lib/api/services';
 import { CourseCard } from '@/components/courses/CourseCard';
-import { RevenueChart } from '@/components/instructor/RevenueChart';
-import {
-  RevenueDateRangePicker,
-  formatRangeLabel,
-  rangeForPreset,
-  type RevenueDateRange,
-} from '@/components/instructor/RevenueDateRangePicker';
+import { courseStatusBadge, formatUsdc } from '@/lib/utils';
+import type { Course } from '@/types';
+import type { RevenueDateRange } from '@/components/instructor/RevenueDateRangePicker';
+// Plain utility functions don't need dynamic import — only the React component does
+import { formatRangeLabel, rangeForPreset } from '@/components/instructor/RevenueDateRangePicker';
+
+// Code-split the heavy chart and date-picker out of the student bundle.
+// These components pull in recharts + date-fns which are instructor-only concerns.
+const RevenueChart = dynamic(
+  () => import('@/components/instructor/RevenueChart').then((m) => m.RevenueChart),
+  { loading: () => <div className="h-[350px] animate-pulse rounded-xl bg-ink-100" /> },
+);
+
+const RevenueDateRangePicker = dynamic(
+  () => import('@/components/instructor/RevenueDateRangePicker').then((m) => m.RevenueDateRangePicker),
+  { loading: () => <div className="h-8 w-40 animate-pulse rounded-lg bg-ink-100" /> },
+);
 import { courseStatusBadge, formatUsdc } from '@/lib/utils';
 import type { Course } from '@/types';
 
