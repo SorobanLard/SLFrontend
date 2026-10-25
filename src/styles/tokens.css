@@ -41,6 +41,13 @@
   --color-focus-ring: var(--color-brand-primary);
 
   /* --------------------------------------------------------------------------
+   * Celebration / confetti tokens (used by CourseCompletionModal)
+   * -------------------------------------------------------------------------- */
+  --color-confetti-gold: #f59e0b;
+  --color-confetti-green: #10b981;
+  --color-confetti-dark: #0f172a;
+
+  /* --------------------------------------------------------------------------
    * WCAG 2.1 AA contrast pairs (normal text >= 4.5:1)
    * Verified:
    * - #26215C on #FFFFFF -> 14.44:1
@@ -204,6 +211,11 @@
   --color-border-default: #2a2541;
   --color-border-strong: #3d3660;
   --color-focus-ring: #9c93ff;
+
+  /* Celebration / confetti — brighter variants for dark backgrounds */
+  --color-confetti-gold: #fbbf24;
+  --color-confetti-green: #34d399;
+  --color-confetti-dark: #e0e7ff;
 
   /* Shadows for dark mode */
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);
