@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag, Minus, Percent, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useCartStore } from '@/lib/hooks/use-cart-store';
+import { useCartStore, useCartHydrated } from '@/lib/hooks/use-cart-store';
 import { formatUsdc, cn } from '@/lib/utils';
 
 interface OrderReviewProps {
@@ -13,6 +13,7 @@ interface OrderReviewProps {
 }
 
 export function OrderReview({ onNext }: OrderReviewProps) {
+  const hydrated = useCartHydrated();
   const { items, removeItem, getTotalPrice } = useCartStore();
   const [promoCode, setPromoCode] = useState('');
   const [promoApplied, setPromoApplied] = useState(false);
@@ -54,6 +55,18 @@ export function OrderReview({ onNext }: OrderReviewProps) {
     setPromoCode('');
     setPromoError(null);
   };
+
+  // Before hydration, the persisted cart may still be in localStorage.
+  // Render a placeholder instead of the empty-cart state so the user never
+  // sees "nothing to pay for" when their cart actually has items.
+  if (!hydrated) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <span className="h-2.5 w-2.5 rounded-full bg-sorobanlard-primary animate-pulse" />
+        <span className="ml-3 text-sm text-ink-500">Loading your cart…</span>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

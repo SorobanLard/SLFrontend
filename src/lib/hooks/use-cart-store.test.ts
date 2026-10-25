@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useCartStore } from './use-cart-store';
+import { useCartStore, useCartHydrated } from './use-cart-store';
 import type { Course } from '@/types';
 
 // Mock course data
@@ -56,11 +56,16 @@ const mockCourse3: Course = {
 
 describe('useCartStore', () => {
   beforeEach(() => {
-    // Reset store state before each test
-    const { result } = renderHook(() => useCartStore());
-    act(() => {
-      result.current.clearCart();
-    });
+    // Clear localStorage so persisted state from a previous test does not leak
+    localStorage.clear();
+    // Reset the store to its initial (empty) state
+    useCartStore.setState({ items: [] });
+    // Re-run the persist hydration so the store picks up the now-empty localStorage
+    useCartStore.persist.rehydrate();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
   });
 
   describe('Initial State', () => {
@@ -440,6 +445,197 @@ describe('useCartStore', () => {
       });
 
       expect(result.current.getTotalPrice()).toBe(59.93);
+    });
+  });
+
+  // ── Persistence regression tests (issue #168) ──────────────────────────
+  // A hard refresh destroys the in-memory Zustand store.  The persist
+  // middleware writes to localStorage on every state change and rehydrates
+  // on store creation, so a refresh should restore the cart exactly as it
+  // was — this is the core scenario the issue asks us to test, not assume.
+
+  describe('Persistence Across Refresh (issue #168)', () => {
+    it('persists cart items to localStorage', () => {
+      const { result } = renderHook(() => useCartStore());
+
+      act(() => {
+        result.current.addItem(mockCourse1);
+        result.current.addItem(mockCourse2);
+      });
+
+      // The persist middleware should have written to localStorage
+      const raw = localStorage.getItem('sorobanlard_cart');
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw!);
+      expect(parsed.state.items).toHaveLength(2);
+      expect(parsed.state.items.map((i: { courseId: string }) => i.courseId)).toEqual([
+        'course-1',
+        'course-2',
+      ]);
+    });
+
+    it('restores cart items after a simulated hard refresh', async () => {
+      // Phase 1 — add items to the cart (this writes to localStorage)
+      const { result: beforeRefresh } = renderHook(() => useCartStore());
+      act(() => {
+        beforeRefresh.current.addItem(mockCourse1);
+        beforeRefresh.current.addItem(mockCourse2);
+        beforeRefresh.current.addItem(mockCourse3);
+      });
+
+      expect(beforeRefresh.current.items).toHaveLength(3);
+
+      // Phase 2 — simulate a hard refresh: the in-memory store is destroyed
+      // but localStorage survives.  Save the persisted snapshot, wipe memory,
+      // then restore localStorage so rehydrate can read the original data.
+      const snapshot = localStorage.getItem('sorobanlard_cart');
+      useCartStore.setState({ items: [] });
+      localStorage.setItem('sorobanlard_cart', snapshot!);
+      await useCartStore.persist.rehydrate();
+
+      // Phase 3 — the cart should be restored from localStorage
+      const { result: afterRefresh } = renderHook(() => useCartStore());
+      expect(afterRefresh.current.items).toHaveLength(3);
+      expect(afterRefresh.current.items.map((i) => i.courseId)).toEqual([
+        'course-1',
+        'course-2',
+        'course-3',
+      ]);
+      // Prices should be intact
+      expect(afterRefresh.current.getTotalPrice()).toBe(159.97);
+    });
+
+    it('persists item removal across a simulated hard refresh', async () => {
+      // Add three courses
+      const { result } = renderHook(() => useCartStore());
+      act(() => {
+        result.current.addItem(mockCourse1);
+        result.current.addItem(mockCourse2);
+        result.current.addItem(mockCourse3);
+      });
+
+      // Remove one — this should also be persisted
+      act(() => {
+        result.current.removeItem('course-2');
+      });
+
+      expect(result.current.items).toHaveLength(2);
+
+      // Simulate refresh: save snapshot, wipe memory, restore storage, rehydrate
+      const snapshot = localStorage.getItem('sorobanlard_cart');
+      useCartStore.setState({ items: [] });
+      localStorage.setItem('sorobanlard_cart', snapshot!);
+      await useCartStore.persist.rehydrate();
+
+      const { result: afterRefresh } = renderHook(() => useCartStore());
+      expect(afterRefresh.current.items).toHaveLength(2);
+      expect(afterRefresh.current.items.map((i) => i.courseId)).toEqual([
+        'course-1',
+        'course-3',
+      ]);
+    });
+
+    it('persists clearCart across a simulated hard refresh', async () => {
+      // Add items first
+      const { result } = renderHook(() => useCartStore());
+      act(() => {
+        result.current.addItem(mockCourse1);
+        result.current.addItem(mockCourse2);
+      });
+
+      // Clear the cart
+      act(() => {
+        result.current.clearCart();
+      });
+
+      // Simulate refresh: save snapshot, wipe memory, restore storage, rehydrate
+      const snapshot = localStorage.getItem('sorobanlard_cart');
+      useCartStore.setState({ items: [] });
+      localStorage.setItem('sorobanlard_cart', snapshot!);
+      await useCartStore.persist.rehydrate();
+
+      const { result: afterRefresh } = renderHook(() => useCartStore());
+      expect(afterRefresh.current.items).toHaveLength(0);
+      expect(afterRefresh.current.getItemCount()).toBe(0);
+    });
+
+    it('does not persist functions — only the items array', () => {
+      const { result } = renderHook(() => useCartStore());
+      act(() => {
+        result.current.addItem(mockCourse1);
+      });
+
+      const raw = localStorage.getItem('sorobanlard_cart');
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw!);
+      // partialize should keep only items
+      expect(parsed.state).toEqual({
+        items: expect.arrayContaining([
+          expect.objectContaining({ courseId: 'course-1' }),
+        ]),
+      });
+      // No functions should be serialized
+      expect(parsed.state).not.toHaveProperty('addItem');
+      expect(parsed.state).not.toHaveProperty('removeItem');
+      expect(parsed.state).not.toHaveProperty('clearCart');
+      expect(parsed.state).not.toHaveProperty('getTotalPrice');
+      expect(parsed.state).not.toHaveProperty('getItemCount');
+    });
+
+    it('survives checkout scenario: add items, then refresh mid-checkout', async () => {
+      // Simulate: user adds courses, navigates to checkout, then does a
+      // hard refresh on the checkout page.
+      const { result: session1 } = renderHook(() => useCartStore());
+      act(() => {
+        session1.current.addItem(mockCourse1);
+        session1.current.addItem(mockCourse2);
+      });
+
+      // Verify items were added
+      expect(session1.current.getItemCount()).toBe(2);
+      expect(session1.current.getTotalPrice()).toBe(129.98);
+
+      // Simulate hard refresh: save snapshot, wipe memory, restore storage, rehydrate
+      const snapshot = localStorage.getItem('sorobanlard_cart');
+      useCartStore.setState({ items: [] });
+      localStorage.setItem('sorobanlard_cart', snapshot!);
+      await useCartStore.persist.rehydrate();
+
+      // After refresh, the cart should be fully restored
+      const { result: session2 } = renderHook(() => useCartStore());
+      expect(session2.current.getItemCount()).toBe(2);
+      expect(session2.current.getTotalPrice()).toBe(129.98);
+      expect(session2.current.items.map((i) => i.courseId)).toEqual([
+        'course-1',
+        'course-2',
+      ]);
+    });
+  });
+
+  describe('useCartHydrated hook', () => {
+    it('returns true after hydration completes', () => {
+      // The store hydrates synchronously in jsdom, so by the time the
+      // effect runs, hasHydrated() is already true.
+      const { result } = renderHook(() => useCartHydrated());
+
+      // After the effect runs, hydrated should be true
+      act(() => {});
+      expect(result.current).toBe(true);
+    });
+
+    it('reports hydrated=true when localStorage has persisted items', () => {
+      // Seed localStorage with persisted cart data
+      const { result: seed } = renderHook(() => useCartStore());
+      act(() => {
+        seed.current.addItem(mockCourse1);
+      });
+
+      // Now simulate a fresh mount — the store is already hydrated
+      const { result } = renderHook(() => useCartHydrated());
+
+      // After effects run, it should be true
+      act(() => {});
+      expect(result.current).toBe(true);
     });
   });
 });

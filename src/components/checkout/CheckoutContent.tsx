@@ -7,10 +7,11 @@ import { StripeProvider } from '@/components/checkout/StripeProvider';
 import { StepProgress, type CheckoutStep } from '@/components/checkout/StepProgress';
 import { OrderReview } from '@/components/checkout/OrderReview';
 import { ConfirmationStep } from '@/components/checkout/ConfirmationStep';
-import { useCartStore, type CartItem } from '@/lib/hooks/use-cart-store';
+import { useCartStore, useCartHydrated, type CartItem } from '@/lib/hooks/use-cart-store';
 import { formatUsdc } from '@/lib/utils';
 
 export function CheckoutContent() {
+  const hydrated = useCartHydrated();
   const { items, getTotalPrice, clearCart } = useCartStore();
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
   const [promoDiscount, setPromoDiscount] = useState(0);
@@ -42,6 +43,21 @@ export function CheckoutContent() {
     clearCart();
     setCurrentStep(3);
   };
+
+  // Before hydration, the persisted cart may still be in localStorage.
+  // Render a minimal placeholder so the user never sees a false "empty cart"
+  // state before the store has re-read its persisted items.
+  if (!hydrated && currentStep !== 3) {
+    return (
+      <div className="space-y-8">
+        <StepProgress currentStep={currentStep} className="max-w-xl mx-auto" />
+        <div className="flex items-center justify-center py-20">
+          <span className="h-2.5 w-2.5 rounded-full bg-sorobanlard-primary animate-pulse" />
+          <span className="ml-3 text-sm text-ink-500">Loading your cart…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
