@@ -192,8 +192,9 @@ export default function DeleteAccountModal({ open, onClose }: DeleteAccountModal
                 {formError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">{formError}</p>}
                 <div className="mt-6 flex justify-between gap-3">
                   <button type="button" onClick={() => { setFormError(null); setStep(1); }} className="btn-secondary">Back</button>
-                  <button type="submit" disabled={isSubmitting} className="btn-danger">
-                    {isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Deleting...</> : 'Delete account'}
+                  <button type="submit" disabled={isSubmitting} className="btn-danger inline-flex items-center gap-2">
+                    {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                    Delete account
                   </button>
                 </div>
               </>
