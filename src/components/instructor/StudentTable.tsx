@@ -1,9 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronRight, X, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatDate } from '@/lib/utils';
+import { ChevronRight, X, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, Users, RotateCcw } from 'lucide-react';
+import { cn, formatDate } from '@/lib/utils';
 import type { StudentEnrollmentRow, StudentDetail } from '@/types';
 
 type SortKey = 'studentName' | 'courseTitle' | 'enrolledAt' | 'progressPercent' | 'lastActiveAt';
@@ -21,6 +20,12 @@ interface StudentTableProps {
   detail: StudentDetail | null;
   detailLoading: boolean;
   onCloseDetail: () => void;
+  /** True while the student list is being fetched */
+  isLoading?: boolean;
+  /** Error message when fetching students fails */
+  error?: string | null;
+  /** Retry handler for the error state */
+  onRetry?: () => void;
 }
 
 function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -39,6 +44,9 @@ export function StudentTable({
   detail,
   detailLoading,
   onCloseDetail,
+  isLoading = false,
+  error = null,
+  onRetry,
 }: StudentTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('enrolledAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -113,129 +121,198 @@ export function StudentTable({
           </select>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs font-semibold text-ink-500">
-                <th className="px-5 py-3 w-8" aria-hidden="true" />
-                <th className="px-5 py-3">
-                  <button type="button" onClick={() => handleSort('studentName')} className="flex items-center hover:text-ink-800">
-                    Student<SortIcon column="studentName" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th className="px-5 py-3 hidden sm:table-cell">
-                  <button type="button" onClick={() => handleSort('courseTitle')} className="flex items-center hover:text-ink-800">
-                    Course<SortIcon column="courseTitle" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th className="px-5 py-3 hidden md:table-cell">
-                  <button type="button" onClick={() => handleSort('enrolledAt')} className="flex items-center hover:text-ink-800">
-                    Enrolled<SortIcon column="enrolledAt" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th className="px-5 py-3">
-                  <button type="button" onClick={() => handleSort('progressPercent')} className="flex items-center hover:text-ink-800">
-                    Progress<SortIcon column="progressPercent" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th className="px-5 py-3 hidden lg:table-cell">
-                  <button type="button" onClick={() => handleSort('lastActiveAt')} className="flex items-center hover:text-ink-800">
-                    Last active<SortIcon column="lastActiveAt" sortKey={sortKey} sortDir={sortDir} />
-                  </button>
-                </th>
-                <th className="px-5 py-3 w-8" aria-hidden="true" />
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRows.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-ink-400">
-                    No students found.
-                  </td>
-                </tr>
-              )}
-              {sortedRows.map((row, i) => (
-                <tr
-                  key={`${row.studentId}-${row.courseId}`}
-                  onClick={() => onRowClick(row.studentId)}
-                  className={cn(
-                    'cursor-pointer border-b border-ink-50 transition-colors hover:bg-sorobanlard-lilac/30',
-                    i % 2 === 0 ? 'bg-white' : 'bg-ink-50/40',
-                    detail?.studentId === row.studentId && 'bg-sorobanlard-lilac/50',
-                  )}
+        {/* Loading state */}
+        {isLoading ? (
+          <div
+            data-testid="student-table-loading"
+            role="status"
+            aria-live="polite"
+            className="p-8 space-y-3"
+          >
+            <p className="text-xs font-medium text-ink-500 text-center mb-4">
+              Loading enrolled students…
+            </p>
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="h-11 rounded-xl bg-ink-50 animate-pulse" />
+            ))}
+          </div>
+        ) : error ? (
+          /* Error state */
+          <div
+            data-testid="student-table-error"
+            role="alert"
+            className="p-10 text-center space-y-3"
+          >
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <AlertCircle className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <p className="text-sm font-semibold text-ink-900">Unable to load students</p>
+            <p className="text-xs text-ink-500 max-w-sm mx-auto">{error}</p>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-sorobanlard-primary px-4 py-2 text-xs font-semibold text-white hover:bg-sorobanlard-mid transition-colors"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                Try again
+              </button>
+            )}
+          </div>
+        ) : sortedRows.length === 0 ? (
+          /* Empty state */
+          <div
+            data-testid="student-table-empty"
+            className="py-12 px-6 text-center space-y-2"
+          >
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-ink-50 text-ink-400">
+              <Users className="h-5 w-5" aria-hidden="true" />
+            </div>
+            {selectedCourseId ? (
+              <>
+                <p className="text-sm font-semibold text-ink-900">
+                  No students enrolled in this course
+                </p>
+                <p className="text-xs text-ink-500">
+                  Try selecting a different course filter to view your other learners.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onCourseFilter('')}
+                  className="mt-2 inline-flex items-center rounded-lg border border-ink-200 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-50"
                 >
-                  {/* Avatar */}
-                  <td className="px-5 py-3">
-                    <div className="h-8 w-8 rounded-full overflow-hidden bg-saffron-100 flex items-center justify-center shrink-0">
-                      {row.studentAvatarUrl ? (
-                        <img src={row.studentAvatarUrl} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-sm font-bold text-saffron-700">
-                          {row.studentName?.charAt(0)?.toUpperCase() ?? '?'}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Name + email */}
-                  <td className="px-5 py-3">
-                    <p className="font-medium text-ink-900 truncate max-w-[140px]">
-                      {row.studentName ?? 'Unknown'}
-                    </p>
-                    {row.studentEmail && (
-                      <p className="text-xs text-ink-400 truncate max-w-[140px]">
-                        {row.studentEmail}
-                      </p>
-                    )}
-                  </td>
-
-                  {/* Course */}
-                  <td className="px-5 py-3 hidden sm:table-cell text-ink-700 truncate max-w-[160px]">
-                    {row.courseTitle}
-                  </td>
-
-                  {/* Enrolled date */}
-                  <td className="px-5 py-3 hidden md:table-cell text-xs text-ink-500">
-                    {formatDate(row.enrolledAt)}
-                  </td>
-
-                  {/* Progress */}
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2 min-w-[80px]">
-                      <div className="h-1.5 flex-1 rounded-full bg-ink-100 overflow-hidden">
-                        <div
-                          className={cn(
-                            'h-full rounded-full transition-all',
-                            row.progressPercent >= 100
-                              ? 'bg-leaf-500'
-                              : row.progressPercent >= 50
-                              ? 'bg-sorobanlard-primary'
-                              : 'bg-saffron-400',
-                          )}
-                          style={{ width: `${row.progressPercent}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-ink-700 w-8 text-right">
-                        {row.progressPercent}%
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* Last active */}
-                  <td className="px-5 py-3 hidden lg:table-cell text-xs text-ink-400">
-                    {row.lastActiveAt ? formatDate(row.lastActiveAt) : '—'}
-                  </td>
-
-                  {/* Chevron */}
-                  <td className="px-3 py-3">
-                    <ChevronRight className="h-4 w-4 text-ink-300" />
-                  </td>
+                  Clear course filter
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-ink-900">
+                  No enrolled students yet
+                </p>
+                <p className="text-xs text-ink-500 max-w-sm mx-auto">
+                  Students will appear here once they enroll in your published courses.
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          /* Table */
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs font-semibold text-ink-500">
+                  <th className="px-5 py-3 w-8" aria-hidden="true" />
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleSort('studentName')} className="flex items-center hover:text-ink-800">
+                      Student<SortIcon column="studentName" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-5 py-3 hidden sm:table-cell">
+                    <button type="button" onClick={() => handleSort('courseTitle')} className="flex items-center hover:text-ink-800">
+                      Course<SortIcon column="courseTitle" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-5 py-3 hidden md:table-cell">
+                    <button type="button" onClick={() => handleSort('enrolledAt')} className="flex items-center hover:text-ink-800">
+                      Enrolled<SortIcon column="enrolledAt" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-5 py-3">
+                    <button type="button" onClick={() => handleSort('progressPercent')} className="flex items-center hover:text-ink-800">
+                      Progress<SortIcon column="progressPercent" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-5 py-3 hidden lg:table-cell">
+                    <button type="button" onClick={() => handleSort('lastActiveAt')} className="flex items-center hover:text-ink-800">
+                      Last active<SortIcon column="lastActiveAt" sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                  <th className="px-5 py-3 w-8" aria-hidden="true" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {sortedRows.map((row, i) => (
+                  <tr
+                    key={`${row.studentId}-${row.courseId}`}
+                    onClick={() => onRowClick(row.studentId)}
+                    className={cn(
+                      'cursor-pointer border-b border-ink-50 transition-colors hover:bg-sorobanlard-lilac/30',
+                      i % 2 === 0 ? 'bg-white' : 'bg-ink-50/40',
+                      detail?.studentId === row.studentId && 'bg-sorobanlard-lilac/50',
+                    )}
+                  >
+                    {/* Avatar */}
+                    <td className="px-5 py-3">
+                      <div className="h-8 w-8 rounded-full overflow-hidden bg-saffron-100 flex items-center justify-center shrink-0">
+                        {row.studentAvatarUrl ? (
+                          <img src={row.studentAvatarUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-sm font-bold text-saffron-700">
+                            {row.studentName?.charAt(0)?.toUpperCase() ?? '?'}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Name + email */}
+                    <td className="px-5 py-3">
+                      <p className="font-medium text-ink-900 truncate max-w-[140px]">
+                        {row.studentName ?? 'Unknown'}
+                      </p>
+                      {row.studentEmail && (
+                        <p className="text-xs text-ink-400 truncate max-w-[140px]">
+                          {row.studentEmail}
+                        </p>
+                      )}
+                    </td>
+
+                    {/* Course */}
+                    <td className="px-5 py-3 hidden sm:table-cell text-ink-700 truncate max-w-[160px]">
+                      {row.courseTitle}
+                    </td>
+
+                    {/* Enrolled date */}
+                    <td className="px-5 py-3 hidden md:table-cell text-xs text-ink-500">
+                      {formatDate(row.enrolledAt)}
+                    </td>
+
+                    {/* Progress */}
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2 min-w-[80px]">
+                        <div className="h-1.5 flex-1 rounded-full bg-ink-100 overflow-hidden">
+                          <div
+                            className={cn(
+                              'h-full rounded-full transition-all',
+                              row.progressPercent >= 100
+                                ? 'bg-leaf-500'
+                                : row.progressPercent >= 50
+                                ? 'bg-sorobanlard-primary'
+                                : 'bg-saffron-400',
+                            )}
+                            style={{ width: `${row.progressPercent}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-semibold text-ink-700 w-8 text-right">
+                          {row.progressPercent}%
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Last active */}
+                    <td className="px-5 py-3 hidden lg:table-cell text-xs text-ink-400">
+                      {row.lastActiveAt ? formatDate(row.lastActiveAt) : '—'}
+                    </td>
+
+                    {/* Chevron */}
+                    <td className="px-3 py-3">
+                      <ChevronRight className="h-4 w-4 text-ink-300" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* ── Detail drawer ── */}
