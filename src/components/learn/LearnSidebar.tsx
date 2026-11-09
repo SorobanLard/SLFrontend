@@ -3,11 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Check, Play, Clock, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { CourseModule, Lesson } from '@/types';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+import type { CourseModule } from '@/types';
 
 function formatSectionDuration(totalSecs: number): string {
   const h = Math.floor(totalSecs / 3600);
@@ -22,20 +18,12 @@ function formatLectureDuration(secs: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
 interface LearnSidebarProps {
   modules: CourseModule[];
   currentLessonId?: string;
   completedLessonIds?: string[];
   onSelectLesson?: (lessonId: string) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export function LearnSidebar({
   modules,
@@ -44,7 +32,6 @@ export function LearnSidebar({
   onSelectLesson,
 }: LearnSidebarProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    // Auto-expand the section containing the current lesson
     if (modules.length > 0 && currentLessonId) {
       const section = modules.find((m) =>
         m.lessons.some((l) => l.id === currentLessonId),
@@ -60,7 +47,6 @@ export function LearnSidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const lessonButtonRefs = useRef(new Map<string, HTMLButtonElement>());
 
-  // Detect mobile viewport
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -154,29 +140,29 @@ export function LearnSidebar({
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b border-ink-200 px-4 py-3">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-ink-900">Course Curriculum</h2>
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-x-hidden">
+      <div className="flex-shrink-0 border-b border-ink-200 px-3 sm:px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2 min-w-0">
+          <h2 className="text-sm font-semibold text-ink-900 truncate">Course Curriculum</h2>
           {isMobile && (
             <button
+              type="button"
               onClick={() => setDrawerOpen(false)}
-              className="rounded-lg p-1 text-ink-500 hover:bg-ink-100 hover:text-ink-700"
+              className="rounded-lg p-1 text-ink-500 hover:bg-ink-100 hover:text-ink-700 shrink-0"
               aria-label="Close sidebar"
             >
               <X className="h-5 w-5" />
             </button>
           )}
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-ink-500">
             {stats.completedCount}/{stats.totalLectures} completed
           </p>
           <button
             type="button"
             onClick={toggleAll}
-            className="text-xs font-medium text-sorobanlard-primary transition-colors hover:text-sorobanlard-mid"
+            className="text-xs font-medium text-sorobanlard-primary transition-colors hover:text-sorobanlard-mid shrink-0"
           >
             {allExpanded ? 'Collapse All' : 'Expand All'}
           </button>
@@ -189,7 +175,7 @@ export function LearnSidebar({
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search lessons"
             aria-label="Search lessons"
-            className="w-full rounded-lg border border-ink-200 bg-white py-2 pl-9 pr-8 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-sorobanlard-primary focus:ring-offset-1"
+            className="w-full min-w-0 rounded-lg border border-ink-200 bg-white py-2 pl-9 pr-8 text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-sorobanlard-primary focus:ring-offset-1"
           />
           {searchQuery && (
             <button
@@ -204,8 +190,7 @@ export function LearnSidebar({
         </div>
       </div>
 
-      {/* Sections */}
-      <div className="flex-1 overflow-y-auto divide-y divide-ink-100">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden divide-y divide-ink-100">
         <p className="sr-only" aria-live="polite" aria-atomic="true">
           {currentLesson ? `Now playing: ${currentLesson.title}` : 'No lesson is currently playing.'}
         </p>
@@ -223,13 +208,12 @@ export function LearnSidebar({
           const sectionCompleted = mod.lessons.every((l) => completedSet.has(l.id));
 
           return (
-            <div key={mod.id}>
-              {/* Section header */}
+            <div key={mod.id} className="min-w-0">
               <button
                 type="button"
                 onClick={() => toggleSection(mod.id)}
                 aria-expanded={isOpen}
-                className="flex w-full items-center gap-2 bg-ink-50 px-4 py-3 text-left transition-colors hover:bg-ink-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sorobanlard-primary"
+                className="flex w-full min-w-0 items-center gap-2 bg-ink-50 px-3 sm:px-4 py-3 text-left transition-colors hover:bg-ink-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sorobanlard-primary"
               >
                 <ChevronDown
                   className={cn(
@@ -250,7 +234,6 @@ export function LearnSidebar({
                 )}
               </button>
 
-              {/* Lessons list */}
               {isOpen && (
                 <ul className="animate-fade-in" role="listbox" aria-label={`${mod.title} lessons`}>
                   {mod.lessons.map((lesson) => {
@@ -258,7 +241,7 @@ export function LearnSidebar({
                     const isCompleted = completedSet.has(lesson.id);
 
                     return (
-                      <li key={lesson.id}>
+                      <li key={lesson.id} className="min-w-0">
                         <button
                           type="button"
                           ref={(node) => {
@@ -271,7 +254,7 @@ export function LearnSidebar({
                           aria-selected={isCurrent}
                           aria-current={isCurrent ? 'true' : undefined}
                           className={cn(
-                            'flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sorobanlard-primary',
+                            'flex w-full min-w-0 items-center gap-2 px-3 sm:px-4 py-2.5 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sorobanlard-primary',
                             isCurrent
                               ? 'bg-sorobanlard-lilac/60 border-l-2 border-sorobanlard-primary'
                               : 'border-l-2 border-transparent hover:bg-ink-50',
@@ -289,7 +272,7 @@ export function LearnSidebar({
                           )}
                           <span
                             className={cn(
-                              'flex-1 truncate',
+                              'flex-1 min-w-0 truncate',
                               isCurrent
                                 ? 'font-semibold text-sorobanlard-deep'
                                 : isCompleted
@@ -323,13 +306,12 @@ export function LearnSidebar({
     </div>
   );
 
-  // Mobile: bottom drawer
   if (isMobile) {
     return (
       <>
-        {/* Toggle button */}
         <button
           type="button"
+          data-testid="learn-sidebar-mobile-trigger"
           onClick={() => setDrawerOpen(true)}
           className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full bg-sorobanlard-primary px-4 py-2.5 text-sm font-medium text-white shadow-lg transition-transform hover:bg-sorobanlard-mid active:scale-95"
           aria-label="Open curriculum"
@@ -338,7 +320,6 @@ export function LearnSidebar({
           Curriculum
         </button>
 
-        {/* Overlay */}
         {drawerOpen && (
           <div
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity"
@@ -346,15 +327,18 @@ export function LearnSidebar({
           />
         )}
 
-        {/* Drawer */}
         <div
+          data-testid="learn-sidebar-drawer"
+          role="dialog"
+          aria-modal={drawerOpen}
+          aria-label="Course curriculum drawer"
           className={cn(
-            'fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-in-out',
+            'fixed inset-x-0 bottom-0 z-50 flex flex-col w-full max-w-full overflow-x-hidden rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-in-out',
             drawerOpen ? 'translate-y-0' : 'translate-y-full',
           )}
           style={{ maxHeight: '80vh' }}
         >
-          <div className="flex justify-center pt-2 pb-1">
+          <div className="flex justify-center pt-2 pb-1 shrink-0">
             <div className="h-1 w-10 rounded-full bg-ink-300" />
           </div>
           {sidebarContent}
@@ -363,15 +347,14 @@ export function LearnSidebar({
     );
   }
 
-  // Desktop: collapsible sidebar
   return (
     <div
+      data-testid="learn-sidebar-desktop"
       className={cn(
-        'relative flex flex-col border-r border-ink-200 bg-white transition-all duration-300 ease-in-out',
-        collapsed ? 'w-12' : 'w-72 lg:w-80',
+        'relative flex flex-shrink-0 flex-col border-r border-ink-200 bg-white transition-all duration-300 ease-in-out max-w-full',
+        collapsed ? 'w-12' : 'w-64 md:w-64 lg:w-80',
       )}
     >
-      {/* Collapse toggle */}
       <button
         type="button"
         onClick={() => setCollapsed((prev) => !prev)}
