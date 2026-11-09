@@ -37,7 +37,6 @@ describe('DataTable Component (Issue #181)', () => {
       <DataTable columns={mockColumns} data={[]} isLoading={true} />
     );
 
-    // 5 skeleton rows
     const rows = container.querySelectorAll('tbody tr');
     expect(rows.length).toBe(5);
   });
@@ -99,9 +98,8 @@ describe('DataTable stable sort (Issue #133)', () => {
         sortDirection="asc"
       />
     );
-    const rows = getAllByRole('row').slice(1); // skip header
+    const rows = getAllByRole('row').slice(1);
     const names = rows.map((row) => row.cells[0].textContent);
-    // Alice, Bob, Diana all have revenue=100 — they must stay in original order
     expect(names).toEqual(['Alice', 'Bob', 'Diana', 'Charlie']);
   });
 
@@ -116,7 +114,6 @@ describe('DataTable stable sort (Issue #133)', () => {
     );
     const rows = getAllByRole('row').slice(1);
     const names = rows.map((row) => row.cells[0].textContent);
-    // Charlie (200) first, then Alice, Bob, Diana (all 100, in original order)
     expect(names).toEqual(['Charlie', 'Alice', 'Bob', 'Diana']);
   });
 
@@ -143,4 +140,29 @@ describe('DataTable stable sort (Issue #133)', () => {
 
     expect(firstRender).toEqual(secondRender);
   });
+});
+
+describe('DataTable responsive overflow containment (Issue #197)', () => {
+  it.each([320, 375, 768, 1024])(
+    'contains horizontal scrolling within scroll container and applies responsive cell padding at %ipx',
+    (width) => {
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: width,
+      });
+      window.dispatchEvent(new Event('resize'));
+
+      render(<DataTable columns={mockColumns} data={mockData} />);
+
+      const wrapper = screen.getByTestId('datatable-wrapper');
+      expect(wrapper.className).toContain('max-w-full');
+      expect(wrapper.className).toContain('min-w-0');
+      expect(wrapper.className).toContain('overflow-hidden');
+
+      const scrollContainer = screen.getByTestId('datatable-scroll-container');
+      expect(scrollContainer.className).toContain('overflow-x-auto');
+      expect(scrollContainer.className).toContain('overscroll-x-contain');
+    },
+  );
 });
