@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   useCallback,
@@ -23,6 +24,10 @@ interface TagInputProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  /** Optional visible label text for the tag input */
+  label?: string;
+  /** Accessible label fallback when no visible label prop is provided */
+  ariaLabel?: string;
 }
 
 export function TagInput({
@@ -32,11 +37,20 @@ export function TagInput({
   className,
   disabled = false,
   id,
+  label,
+  ariaLabel = 'Add a tag',
 }: TagInputProps) {
+  const generatedId = useId();
+  const inputId = id ?? `tag-input-${generatedId}`;
+  const statusId = `${inputId}-status`;
+  const hintId = `${inputId}-hint`;
+  const listboxId = `${inputId}-suggestions`;
+
   const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isOpen, setIsOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -83,6 +97,7 @@ export function TagInput({
       const trimmed = tag.trim();
       if (!trimmed || value.includes(trimmed) || atMax) return;
       onChange([...value, trimmed]);
+      setAnnouncement(`Added tag ${trimmed}`);
       setInputValue('');
       setSuggestions([]);
       setIsOpen(false);
@@ -96,6 +111,7 @@ export function TagInput({
   const removeTag = useCallback(
     (tag: string) => {
       onChange(value.filter((t) => t !== tag));
+      setAnnouncement(`Removed tag ${tag}`);
       inputRef.current?.focus();
     },
     [onChange, value],
@@ -166,10 +182,21 @@ export function TagInput({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const describedBy = !atMax && !disabled ? `${statusId} ${hintId}` : statusId;
+
   return (
     <div className={cn('space-y-1.5', className)} data-tag-input>
-      {/* Tag count indicator */}
+      <label
+        htmlFor={inputId}
+        className={label ? 'label block text-sm font-medium text-ink-900' : 'sr-only'}
+      >
+        {label ?? ariaLabel}
+      </label>
+
+      {/* Tag count and live announcement indicator */}
       <div
+        id={statusId}
+        role="status"
         className={cn(
           'text-xs font-medium',
           atMax ? 'text-amber-600' : 'text-ink-400',
@@ -177,6 +204,7 @@ export function TagInput({
         aria-live="polite"
         aria-atomic="true"
       >
+        {announcement ? <span className="sr-only">{announcement}. </span> : null}
         {value.length} of {MAX_TAGS} tags added
         {atMax && ' — remove a tag to add more'}
       </div>
@@ -188,9 +216,9 @@ export function TagInput({
           disabled ? 'cursor-not-allowed bg-ink-50 opacity-60' : 'cursor-text',
           'border-[var(--color-border-default)]',
         )}
-        onClick={() => !disabled && inputRef.current?.focus()}
+        onClick={() => !disabled && !atMax && inputRef.current?.focus()}
         role="group"
-        aria-label="Tags"
+        aria-label="Selected tags"
       >
         {/* Pill tags */}
         {value.map((tag) => (
@@ -207,7 +235,7 @@ export function TagInput({
                   e.stopPropagation();
                   removeTag(tag);
                 }}
-                className="ml-0.5 rounded-full p-0.5 text-saffron-500 transition-colors hover:bg-saffron-100 hover:text-saffron-700"
+                className="ml-0.5 rounded-full p-0.5 text-saffron-500 transition-colors hover:bg-saffron-100 hover:text-saffron-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-saffron-500"
                 aria-label={`Remove tag ${tag}`}
               >
                 <X className="h-2.5 w-2.5" aria-hidden="true" />
@@ -216,28 +244,31 @@ export function TagInput({
           </span>
         ))}
 
-        {/* Text input */}
-        {!atMax && !disabled && (
-          <input
-            ref={inputRef}
-            id={id}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onFocus={() => suggestions.length > 0 && setIsOpen(true)}
-            placeholder={value.length === 0 ? placeholder : ''}
-            className="min-w-[8rem] flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
-            autoComplete="off"
-            aria-autocomplete="list"
-            aria-expanded={isOpen}
-            aria-controls={isOpen ? 'tag-suggestions' : undefined}
-            aria-activedescendant={
-              activeIndex >= 0 ? `tag-suggestion-${activeIndex}` : undefined
-            }
-            role="combobox"
-          />
-        )}
+        {/* Text input — kept mounted so label htmlFor association remains valid */}
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="text"
+          disabled={disabled || atMax}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => suggestions.length > 0 && setIsOpen(true)}
+          placeholder={value.length === 0 ? placeholder : ''}
+          className={cn(
+            'min-w-[8rem] flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none',
+            (atMax || disabled) && 'sr-only',
+          )}
+          autoComplete="off"
+          aria-describedby={describedBy}
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? listboxId : undefined}
+          aria-activedescendant={
+            activeIndex >= 0 ? `tag-suggestion-${activeIndex}` : undefined
+          }
+          role="combobox"
+        />
       </div>
 
       {/* Suggestions dropdown */}
@@ -245,7 +276,7 @@ export function TagInput({
         <div className="relative z-20">
           <ul
             ref={listRef}
-            id="tag-suggestions"
+            id={listboxId}
             role="listbox"
             aria-label="Tag suggestions"
             className="absolute top-1 w-full overflow-auto rounded-xl border border-ink-100 bg-white py-1 shadow-lg"
@@ -279,7 +310,7 @@ export function TagInput({
 
       {/* Keyboard hint */}
       {!atMax && !disabled && (
-        <p className="text-[11px] text-ink-400">
+        <p id={hintId} className="text-[11px] text-ink-400">
           Press <kbd className="rounded bg-ink-100 px-1 py-0.5 font-mono text-[10px]">Enter</kbd>{' '}
           or{' '}
           <kbd className="rounded bg-ink-100 px-1 py-0.5 font-mono text-[10px]">,</kbd> to add ·{' '}
