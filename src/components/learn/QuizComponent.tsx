@@ -47,6 +47,28 @@ function isAnswerCorrect(question: QuizQuestion, answer: string[]) {
   return answer.every((id) => correctIds.has(id));
 }
 
+function getTimerAnnouncement(
+  isActive: boolean,
+  isWarning: boolean,
+  secondsLeft: number,
+  showResults: boolean,
+): string {
+  if (!isActive) return "";
+  if (secondsLeft <= 0 || showResults) {
+    return secondsLeft <= 0 ? "Time is up. Quiz submitted." : "";
+  }
+  if (secondsLeft <= 10) {
+    return "Warning: 10 seconds remaining.";
+  }
+  if (isWarning || secondsLeft <= 30) {
+    return "Warning: 30 seconds remaining.";
+  }
+  if (secondsLeft === 60) {
+    return "1 minute remaining.";
+  }
+  return "";
+}
+
 export function QuizComponent({
   questions,
   passPercentage = 60,
@@ -112,6 +134,13 @@ export function QuizComponent({
     enabled: !showResults,
     onExpire: handleTimeUp,
   });
+
+  const timerAnnouncement = getTimerAnnouncement(
+    isActive,
+    isWarning,
+    secondsLeft,
+    showResults,
+  );
 
   const handleToggleOption = useCallback(
     (optionId: string) => {
@@ -187,7 +216,17 @@ export function QuizComponent({
 
   if (showResults) {
     return (
-      <div className="flex flex-col items-center rounded-2xl border border-ink-200 bg-white p-8 text-center">
+      <div
+        role="region"
+        aria-label="Quiz results"
+        aria-live="polite"
+        className="flex flex-col items-center rounded-2xl border border-ink-200 bg-white p-8 text-center"
+      >
+        {timerAnnouncement && (
+          <p className="sr-only" role="alert" aria-live="assertive">
+            {timerAnnouncement}
+          </p>
+        )}
         <div
           className={cn(
             "flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold",
@@ -226,7 +265,7 @@ export function QuizComponent({
             onClick={handleRetake}
             className="inline-flex items-center gap-2 rounded-lg bg-sorobanlard-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sorobanlard-mid"
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Retake
           </button>
           {onContinue && (
@@ -236,7 +275,7 @@ export function QuizComponent({
               className="inline-flex items-center gap-2 rounded-lg border border-ink-200 px-4 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
             >
               Continue to next lecture
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -248,6 +287,30 @@ export function QuizComponent({
 
   return (
     <div className="rounded-2xl border border-ink-200 bg-white p-6">
+      {/* Live region announcing question transitions */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="quiz-question-announcer"
+      >
+        {`Question ${currentIndex + 1} of ${total}: ${question.question}`}
+      </div>
+
+      {/* Live region announcing countdown thresholds */}
+      {isActive && (
+        <div
+          role={isWarning ? "alert" : "status"}
+          aria-live={isWarning ? "assertive" : "polite"}
+          aria-atomic="true"
+          className="sr-only"
+          data-testid="quiz-timer-announcer"
+        >
+          {timerAnnouncement}
+        </div>
+      )}
+
       <div className="mb-6">
         <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
           <span>
@@ -332,10 +395,10 @@ export function QuizComponent({
                   {option.text}
                 </span>
                 {showCorrect && (
-                  <Check className="h-4 w-4 flex-shrink-0 text-emerald-600" />
+                  <Check className="h-4 w-4 flex-shrink-0 text-emerald-600" aria-hidden="true" />
                 )}
                 {showIncorrect && (
-                  <X className="h-4 w-4 flex-shrink-0 text-rose-600" />
+                  <X className="h-4 w-4 flex-shrink-0 text-rose-600" aria-hidden="true" />
                 )}
               </label>
             );
@@ -346,7 +409,9 @@ export function QuizComponent({
       {isSubmitted && (
         <div
           ref={feedbackRef}
+          role="status"
           aria-live="polite"
+          aria-atomic="true"
           className={cn(
             "mt-4 rounded-lg border p-4",
             correct
@@ -356,9 +421,9 @@ export function QuizComponent({
         >
           <div className="flex items-center gap-2">
             {correct ? (
-              <Check className="h-5 w-5 text-emerald-600" />
+              <Check className="h-5 w-5 text-emerald-600" aria-hidden="true" />
             ) : (
-              <X className="h-5 w-5 text-rose-600" />
+              <X className="h-5 w-5 text-rose-600" aria-hidden="true" />
             )}
             <span
               className={cn(
@@ -397,7 +462,7 @@ export function QuizComponent({
             className="inline-flex items-center gap-1 rounded-lg bg-sorobanlard-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sorobanlard-mid"
           >
             {isLastQuestion ? "See Results" : "Next"}
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
       </div>

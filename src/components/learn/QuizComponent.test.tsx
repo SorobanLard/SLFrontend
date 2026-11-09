@@ -311,4 +311,50 @@ describe("QuizComponent", () => {
       randomSpy.mockRestore();
     }
   });
+
+  it("announces question transitions and timed countdown warnings via aria-live regions (Issue #218)", () => {
+    vi.useFakeTimers();
+    try {
+      render(<QuizComponent questions={questions} timeLimitSeconds={90} />);
+
+      const questionAnnouncer = screen.getByTestId("quiz-question-announcer");
+      expect(questionAnnouncer).toHaveAttribute("aria-live", "polite");
+      expect(questionAnnouncer).toHaveAttribute("aria-atomic", "true");
+      expect(questionAnnouncer).toHaveTextContent(
+        "Question 1 of 3: Which planet is closest to the Sun?",
+      );
+
+      // Advance to next question and verify live announcement updates
+      fireEvent.click(screen.getByRole("radio", { name: /Mercury/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Submit Answer" }));
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      expect(screen.getByTestId("quiz-question-announcer")).toHaveTextContent(
+        "Question 2 of 3: Select all gas giants.",
+      );
+
+      // Advance timer into 30-second warning threshold
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+
+      const timerAnnouncer = screen.getByTestId("quiz-timer-announcer");
+      expect(timerAnnouncer).toHaveAttribute("role", "alert");
+      expect(timerAnnouncer).toHaveAttribute("aria-live", "assertive");
+      expect(timerAnnouncer).toHaveTextContent(
+        "Warning: 30 seconds remaining.",
+      );
+
+      // Advance timer into final 10-second warning threshold
+      act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveTextContent(
+        "Warning: 10 seconds remaining.",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
