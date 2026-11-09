@@ -6,6 +6,11 @@ import { absoluteUrl } from '@/lib/seo';
 export interface BreadcrumbItem {
   label: string;
   href?: string;
+  /**
+   * Optional explicit flag marking this item as the current page.
+   * When omitted on all items, the final item in `items` is treated as the current page.
+   */
+  current?: boolean;
 }
 
 interface BreadcrumbProps {
@@ -85,7 +90,7 @@ function BreadcrumbList({
   return (
     <ol className="flex items-center gap-1 text-sm text-ink-500">
       {items.map((item, index) => {
-        const isCurrentPage = item.originalIndex === currentPageIndex;
+        const isCurrentPage = !item.isEllipsis && (item.current === true || item.originalIndex === currentPageIndex);
         const shouldRenderLink = !item.isEllipsis && !isCurrentPage && Boolean(item.href);
 
         return (
@@ -101,6 +106,7 @@ function BreadcrumbList({
                   isCurrentPage ? 'font-medium text-ink-900' : 'text-ink-500',
                 )}
                 aria-current={isCurrentPage ? 'page' : undefined}
+                aria-hidden={item.isEllipsis ? 'true' : undefined}
               >
                 {item.label}
               </span>
@@ -128,7 +134,8 @@ export function Breadcrumb({
 
   const desktopItems = toRenderItems(items);
   const mobileItems = buildMobileItems(items);
-  const currentPageIndex = items.length - 1;
+  const explicitCurrentIndex = items.findIndex((item) => item.current === true);
+  const currentPageIndex = explicitCurrentIndex !== -1 ? explicitCurrentIndex : items.length - 1;
 
   return (
     <nav aria-label={ariaLabel} className={cn('w-full', className)}>

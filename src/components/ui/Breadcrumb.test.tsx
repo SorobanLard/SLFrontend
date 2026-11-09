@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Breadcrumb } from './Breadcrumb';
 
 // next/link renders a plain <a> in the test environment
@@ -56,6 +56,26 @@ describe('Breadcrumb', () => {
       expect(lastItemLinks).toHaveLength(0);
     });
 
+    it('does NOT render the current page item as a clickable link even when href is provided (Issue #217)', () => {
+      render(
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Courses', href: '/courses' },
+            { label: 'JavaScript Masterclass', href: '/courses/js-masterclass' },
+          ]}
+        />,
+      );
+
+      expect(screen.queryAllByRole('link', { name: 'JavaScript Masterclass' })).toHaveLength(0);
+      const currentItems = screen.getAllByText('JavaScript Masterclass');
+      expect(currentItems.length).toBeGreaterThan(0);
+      currentItems.forEach((el) => {
+        expect(el.tagName).toBe('SPAN');
+        expect(el).toHaveAttribute('aria-current', 'page');
+      });
+    });
+
     it('renders the last item as plain text', () => {
       render(<Breadcrumb items={items} />);
       const spans = screen.getAllByText('JavaScript Masterclass');
@@ -83,6 +103,24 @@ describe('Breadcrumb', () => {
         (el) => el.getAttribute('aria-current') === 'page',
       );
       expect(withAriaCurrent.length).toBeGreaterThan(0);
+    });
+
+    it('supports explicit current=true item semantics without rendering as a link (Issue #217)', () => {
+      render(
+        <Breadcrumb
+          items={[
+            { label: 'Home', href: '/' },
+            { label: 'Courses', href: '/courses', current: true },
+          ]}
+        />,
+      );
+
+      expect(screen.queryAllByRole('link', { name: 'Courses' })).toHaveLength(0);
+      const currentItems = screen.getAllByText('Courses');
+      currentItems.forEach((el) => {
+        expect(el.tagName).toBe('SPAN');
+        expect(el).toHaveAttribute('aria-current', 'page');
+      });
     });
 
     it('does NOT set aria-current on non-last items', () => {
@@ -220,6 +258,9 @@ describe('Breadcrumb', () => {
       const ellipsis = screen.getAllByText('…');
       // Mobile list collapses to [first, …, last]
       expect(ellipsis.length).toBeGreaterThan(0);
+      ellipsis.forEach((el) => {
+        expect(el).toHaveAttribute('aria-hidden', 'true');
+      });
     });
   });
 
