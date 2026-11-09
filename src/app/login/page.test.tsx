@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoginPage from './page';
 import { authApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
+import {
+  connectFreighter,
+  isFreighterInstalled,
+  signNonce,
+} from '@/lib/stellar/freighter';
 
 const mockPush = vi.fn();
 const mockGetSearchParam = vi.fn();
@@ -25,17 +30,36 @@ vi.mock('next/link', () => ({
 vi.mock('@/lib/api/services', () => ({
   authApi: {
     loginWithEmail: vi.fn(),
+    getNonce: vi.fn(),
+    login: vi.fn(),
   },
+}));
+
+vi.mock('@/lib/stellar/freighter', () => ({
+  isFreighterInstalled: vi.fn(),
+  connectFreighter: vi.fn(),
+  signNonce: vi.fn(),
 }));
 
 describe('LoginPage integration', () => {
   const loginWithEmailMock = vi.mocked(authApi.loginWithEmail);
+  const getNonceMock = vi.mocked(authApi.getNonce);
+  const loginWithWalletMock = vi.mocked(authApi.login);
+  const isFreighterInstalledMock = vi.mocked(isFreighterInstalled);
+  const connectFreighterMock = vi.mocked(connectFreighter);
+  const signNonceMock = vi.mocked(signNonce);
 
   beforeEach(() => {
     mockPush.mockReset();
     mockGetSearchParam.mockReset();
     mockGetSearchParam.mockReturnValue(null);
     loginWithEmailMock.mockReset();
+    getNonceMock.mockReset();
+    loginWithWalletMock.mockReset();
+    isFreighterInstalledMock.mockReset();
+    connectFreighterMock.mockReset();
+    signNonceMock.mockReset();
+    delete (window as Window & { freighter?: unknown }).freighter;
     useAuthStore.getState().logout();
     localStorage.clear();
   });
@@ -121,5 +145,42 @@ describe('LoginPage integration', () => {
     await user.click(screen.getByRole('button', { name: /login/i }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials');
+  });
+
+  it('shows a friendly fallback with install link and retry button when Freighter extension is not installed (Issue #214)', async () => {
+    const user = userEvent.setup();
+    isFreighterInstalledMock.mockResolvedValueOnce(false);
+
+    render(<LoginPage />);
+
+    await user.click(screen.getByRole('button', { name: /connect freighter wallet/i }));
+
+    const fallback = await screen.findByTestId('freighter-not-installed');
+    expect(fallback).toHaveTextContent(/freighter wallet extension not detected/i);
+
+    const installLink = screen.getByRole('link', { name: /install freighter/i });
+    expect(installLink).toHaveAttribute('href', 'https://www.freighter.app/');
+    expect(installLink).toHaveAttribute('target', '_blank');
+
+    // Now simulate user installing Freighter and clicking "Retry connection"
+    isFreighterInstalledMock.mockResolvedValueOnce(true);
+    connectFreighterMock.mockResolvedValueOnce('GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H');
+    getNonceMock.mockResolvedValueOnce('nonce-xyz');
+    signNonceMock.mockResolvedValueOnce('signed-xdr-xyz');
+    loginWithWalletMock.mockResolvedValueOnce({
+      accessToken: 'wallet-token-456',
+      user: {
+        id: 'user-wallet-1',
+        stellarAddress: 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H',
+      } as any,
+    });
+
+    await user.click(screen.getByRole('button', { name: /retry connection/i }));
+
+    await waitFor(() => {
+      expect(connectFreighterMock).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+    expect(screen.queryByTestId('freighter-not-installed')).not.toBeInTheDocument();
   });
 });

@@ -6,10 +6,21 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AxiosError } from 'axios';
-import { Eye, EyeOff, Facebook, Loader2 } from 'lucide-react';
+import { ExternalLink, Eye, EyeOff, Facebook, Loader2, RefreshCw, Wallet } from 'lucide-react';
 import { authApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
+import {
+  connectFreighter,
+  isFreighterInstalled,
+  signNonce,
+} from '@/lib/stellar/freighter';
 import { loginSchema, type LoginFormValues } from '@/lib/validations/login';
+
+const FREIGHTER_INSTALL_URL = 'https://www.freighter.app/';
+const STELLAR_PASSPHRASE =
+  process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
+    ? 'Public Global Stellar Network ; September 2015'
+    : 'Test SDF Network ; September 2015';
 
 function GoogleIcon() {
   return (
@@ -40,10 +51,13 @@ function LoginForm() {
   const setAuth = useAuthStore((state) => state.setAuth);
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [freighterMissing, setFreighterMissing] = useState(false);
+  const [walletConnecting, setWalletConnecting] = useState(false);
 
   const {
     register,
     handleSubmit,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -55,8 +69,49 @@ function LoginForm() {
     mode: 'onBlur',
   });
 
+  const handleFreighterConnect = async () => {
+    setFormError(null);
+    setFreighterMissing(false);
+    setWalletConnecting(true);
+
+    try {
+      const hasWindowExtension =
+        typeof window !== 'undefined' &&
+        Boolean((window as Window & { freighter?: unknown }).freighter);
+      const installed = await isFreighterInstalled();
+
+      if (!installed && !hasWindowExtension) {
+        setFreighterMissing(true);
+        return;
+      }
+
+      const address = await connectFreighter();
+      const nonce = await authApi.getNonce(address);
+      const signedNonce = await signNonce(nonce, STELLAR_PASSPHRASE);
+      const { accessToken, user } = await authApi.login({
+        stellarAddress: address,
+        signedNonce,
+        signature: signedNonce,
+      });
+
+      setAuth(address, accessToken, user, getValues('rememberMe'));
+
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl ?? '/dashboard');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Could not connect to Freighter wallet. Please try again.';
+      setFormError(message);
+    } finally {
+      setWalletConnecting(false);
+    }
+  };
+
   const onSubmit = async (values: LoginFormValues) => {
     setFormError(null);
+    setFreighterMissing(false);
 
     try {
       const { accessToken, user } = await authApi.loginWithEmail({
@@ -93,7 +148,7 @@ function LoginForm() {
       </p>
 
       <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <fieldset disabled={isSubmitting} className="space-y-4">
+        <fieldset disabled={isSubmitting || walletConnecting} className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-[#26215C]" htmlFor="email">
               Email
@@ -136,7 +191,7 @@ function LoginForm() {
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B66A6] hover:text-[#26215C]"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? 'Hide characters' : 'Show characters'}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -166,9 +221,43 @@ function LoginForm() {
             </p>
           )}
 
+          {freighterMissing && (
+            <div
+              role="alert"
+              data-testid="freighter-not-installed"
+              className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 space-y-2.5"
+            >
+              <p className="font-semibold text-sm text-amber-950">
+                Freighter wallet extension not detected
+              </p>
+              <p className="leading-relaxed">
+                To connect with your Stellar wallet, install the Freighter browser extension, switch it to Testnet, and click Retry connection.
+              </p>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <a
+                  href={FREIGHTER_INSTALL_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#26215C] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3C3489]"
+                >
+                  Install Freighter
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </a>
+                <button
+                  type="button"
+                  onClick={handleFreighterConnect}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 transition hover:bg-amber-100"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Retry connection
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || walletConnecting}
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#7F77DD] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#3C3489] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSubmitting ? (
@@ -188,10 +277,29 @@ function LoginForm() {
             </span>
           </div>
 
+          <button
+            type="button"
+            onClick={handleFreighterConnect}
+            disabled={isSubmitting || walletConnecting}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] bg-[#F8F8FF] px-4 py-2.5 text-sm font-semibold text-[#26215C] hover:bg-[#EEEDFE] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {walletConnecting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Connecting Freighter...
+              </>
+            ) : (
+              <>
+                <Wallet className="h-4 w-4 text-[#4A42B8]" aria-hidden="true" />
+                Connect Freighter Wallet
+              </>
+            )}
+          </button>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              disabled={isSubmitting}
+              disabled={isSubmitting || walletConnecting}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] px-4 py-2.5 text-sm font-medium text-[#26215C] hover:bg-[#EEEDFE] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <GoogleIcon />
@@ -199,7 +307,7 @@ function LoginForm() {
             </button>
             <button
               type="button"
-              disabled={isSubmitting}
+              disabled={isSubmitting || walletConnecting}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D3D0F2] px-4 py-2.5 text-sm font-medium text-[#26215C] hover:bg-[#EEEDFE] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Facebook className="h-4 w-4 text-[#1877F2]" />
