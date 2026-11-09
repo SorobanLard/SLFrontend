@@ -10,8 +10,70 @@ import {
   ClipboardCheck, X,
 } from 'lucide-react';
 import { coursesApi, uploadsApi, lessonsApi } from '@/lib/api/services';
+import { registerCourseOnChain } from '@/lib/stellar/contract';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
 import { cn, generateCourseId, usdcToStroops } from '@/lib/utils';
+
+const USDC_ADDRESS =
+  process.env.NEXT_PUBLIC_USDC_ADDRESS ??
+  'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA';
+
+export type CourseRegistrationFailureKind =
+  | 'signature_rejected'
+  | 'onchain_failed'
+  | 'network_error';
+
+export interface CourseRegistrationFailure {
+  kind: CourseRegistrationFailureKind;
+  title: string;
+  message: string;
+  actionHint: string;
+}
+
+export function classifyCourseRegistrationError(error: unknown): CourseRegistrationFailure {
+  const raw =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: unknown }).message ?? '')
+          : '';
+
+  if (/user\s+declined|declined\s+access|user\s+rejected|rejected|cancel|denied|user_rejected|4001/i.test(raw)) {
+    return {
+      kind: 'signature_rejected',
+      title: 'Signature rejected in Freighter',
+      message:
+        'You declined the signing request in Freighter. Your course draft is saved and nothing was submitted on-chain.',
+      actionHint: 'Re-open Freighter and click Retry registration when you are ready to sign.',
+    };
+  }
+
+  if (
+    /simulation:|submission\s+failed|transaction\s+failed|transaction\s+not\s+confirmed|on-chain|contract|revert|op_|invoke/i.test(
+      raw,
+    )
+  ) {
+    return {
+      kind: 'onchain_failed',
+      title: 'On-chain course registration failed',
+      message:
+        raw || 'The Stellar contract rejected or failed to confirm the course registration transaction.',
+      actionHint:
+        'Verify your wallet is connected to Stellar Testnet with enough XLM for fees, then click Retry registration.',
+    };
+  }
+
+  return {
+    kind: 'network_error',
+    title: 'Network connection error',
+    message:
+      raw || 'We could not reach the Stellar RPC or backend service to complete course registration.',
+    actionHint:
+      'Check your internet connection and Testnet RPC availability, then click Retry registration.',
+  };
+}
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -822,9 +884,11 @@ export default function NewCoursePage() {
   const [loading, setLoading] = useState(false);
   const [txStep,  setTxStep]  = useState('');
   const [error,   setError]   = useState<string | null>(null);
+  const [failure, setFailure] = useState<CourseRegistrationFailure | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
+  const backendSavedCourseIdRef = useRef<string | null>(null);
 
-  const courseId = generateCourseId(data.category || 'COURSE');
+  const courseId = backendSavedCourseIdRef.current ?? generateCourseId(data.category || 'COURSE');
 
   const handleChange = useCallback((k: keyof CourseFormData, v: any) => {
     setData((prev) => ({ ...prev, [k]: v }));
@@ -868,48 +932,64 @@ export default function NewCoursePage() {
   const handlePublish = async () => {
     if (!address) return;
     setError(null);
+    setFailure(null);
     setLoading(true);
 
     try {
-      setTxStep('Creating course record…');
       const finalPrice = data.pricingType === 'free' ? 0 : parseFloat(data.price || '0');
-      const course = await coursesApi.create({
-        courseId,
-        title:        data.title,
-        description:  data.subtitle,
-        category:     data.category,
-        level:        data.level,
-        language:     data.language,
-        thumbnailUrl: data.thumbnailUrl || undefined,
-        price:        finalPrice,
-      });
 
-      // Create sections + lessons
-      setTxStep('Saving curriculum…');
-      for (let si = 0; si < data.sections.length; si++) {
-        const sec = data.sections[si];
-        if (!sec.title && sec.lessons.length === 0) continue;
-        const module = await lessonsApi.createModule(courseId, sec.title || `Section ${si + 1}`, si + 1);
-        for (let li = 0; li < sec.lessons.length; li++) {
-          const lesson = sec.lessons[li];
-          await lessonsApi.createLesson({
-            moduleId: module.id,
-            title:    lesson.title || `Lesson ${li + 1}`,
-            type:     lesson.type,
-            position: li + 1,
-            isFree:   lesson.isFree,
-          });
+      if (!backendSavedCourseIdRef.current) {
+        setTxStep('Creating course record…');
+        await coursesApi.create({
+          courseId,
+          title:        data.title,
+          description:  data.subtitle,
+          category:     data.category,
+          level:        data.level,
+          language:     data.language,
+          thumbnailUrl: data.thumbnailUrl || undefined,
+          price:        finalPrice,
+        });
+
+        // Create sections + lessons
+        setTxStep('Saving curriculum…');
+        for (let si = 0; si < data.sections.length; si++) {
+          const sec = data.sections[si];
+          if (!sec.title && sec.lessons.length === 0) continue;
+          const module = await lessonsApi.createModule(courseId, sec.title || `Section ${si + 1}`, si + 1);
+          for (let li = 0; li < sec.lessons.length; li++) {
+            const lesson = sec.lessons[li];
+            await lessonsApi.createLesson({
+              moduleId: module.id,
+              title:    lesson.title || `Lesson ${li + 1}`,
+              type:     lesson.type,
+              position: li + 1,
+              isFree:   lesson.isFree,
+            });
+          }
         }
+        backendSavedCourseIdRef.current = courseId;
       }
 
-      // Submit for review (on-chain step can be done later)
+      // Step 3 of submission: Register on Stellar via Freighter
+      setTxStep('Registering on Stellar — sign in Freighter…');
+      const txHash = await registerCourseOnChain({
+        callerAddress: address,
+        courseId,
+        price: usdcToStroops(finalPrice),
+        tokenAddress: USDC_ADDRESS,
+      });
+
+      // Submit for review
       setTxStep('Submitting for review…');
-      await coursesApi.submitForReview(courseId);
+      await coursesApi.submitForReview(courseId, txHash);
 
       localStorage.removeItem('sorobanlard_course_draft');
       router.push('/dashboard/instructor');
     } catch (err: any) {
-      setError(err?.message ?? 'Something went wrong. Please try again.');
+      const classified = classifyCourseRegistrationError(err);
+      setFailure(classified);
+      setError(classified.message);
     } finally {
       setLoading(false);
       setTxStep('');
@@ -936,12 +1016,39 @@ export default function NewCoursePage() {
       <StepIndicator current={step} saved={saved} />
 
       {/* Error banner */}
-      {error && (
-        <div className="mb-5 p-4 rounded-xl bg-red-50 border border-red-100 flex gap-3">
-          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-          <button type="button" onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
-            <X className="w-4 h-4" />
+      {(failure || error) && (
+        <div
+          role="alert"
+          data-testid="course-registration-error"
+          data-error-kind={failure?.kind ?? 'generic'}
+          className="mb-5 p-4 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3"
+        >
+          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 space-y-1">
+            {failure && <p className="text-sm font-semibold text-red-800">{failure.title}</p>}
+            <p className="text-sm text-red-700">{failure?.message ?? error}</p>
+            {failure && <p className="text-xs text-red-600">{failure.actionHint}</p>}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handlePublish}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-60"
+              >
+                Retry registration
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss error"
+            onClick={() => {
+              setError(null);
+              setFailure(null);
+            }}
+            className="ml-auto text-red-400 hover:text-red-600"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       )}
