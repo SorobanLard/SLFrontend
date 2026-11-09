@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCheck, Loader2 } from 'lucide-react';
+import { AlertCircle, Bell, CheckCheck, Loader2, RotateCcw } from 'lucide-react';
 import { cn, timeAgo } from '@/lib/utils';
 import type { Notification } from '@/types';
 import { isToday } from 'date-fns';
@@ -134,7 +134,7 @@ function NotificationRow({ notification: n, onRead }: NotificationRowProps) {
 export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
 
-  const { notifications, loading, fetched, fetchNotifications, markRead, markAllRead } =
+  const { notifications, loading, fetched, error, fetchNotifications, markRead, markAllRead } =
     useNotificationStore();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -240,14 +240,46 @@ export function NotificationDropdown() {
           <div className="max-h-[420px] overflow-y-auto">
             {loading ? (
               /* Loading state */
-              <div className="flex justify-center py-10">
+              <div
+                data-testid="notifications-loading"
+                role="status"
+                aria-live="polite"
+                className="flex flex-col items-center justify-center gap-2 py-10"
+              >
                 <Loader2 className="h-5 w-5 animate-spin text-sorobanlard-primary" />
+                <p className="text-xs text-white/60">Loading notifications…</p>
+              </div>
+            ) : error ? (
+              /* Error state */
+              <div
+                data-testid="notifications-error"
+                role="alert"
+                className="flex flex-col items-center gap-3 px-4 py-8 text-center"
+              >
+                <AlertCircle className="h-7 w-7 text-red-400" aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Failed to load notifications
+                  </p>
+                  <p className="mt-1 text-xs text-white/60">{error}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void fetchNotifications()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-sorobanlard-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-sorobanlard-mid"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Try again
+                </button>
               </div>
             ) : notifications.length === 0 ? (
               /* Empty state */
-              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+              <div
+                data-testid="notifications-empty"
+                className="flex flex-col items-center gap-3 px-4 py-10 text-center"
+              >
                 <Bell className="h-8 w-8 text-white/20" />
-                <p className="text-sm text-white/50">You're all caught up!</p>
+                <p className="text-sm text-white/50">You&apos;re all caught up!</p>
                 <p className="text-xs text-white/30">No notifications yet.</p>
               </div>
             ) : (
