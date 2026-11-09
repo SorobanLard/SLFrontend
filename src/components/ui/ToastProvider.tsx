@@ -91,9 +91,18 @@ function ToastCard({
   return (
     <div
       role={toast.role}
+      aria-live={toast.role === 'alert' ? 'assertive' : 'polite'}
+      aria-atomic="true"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          setIsLeaving(true);
+          window.setTimeout(() => onDismiss(toast.id), 180);
+        }
+      }}
       style={dragX !== 0 ? { transform: `translateX(${dragX}px)` } : undefined}
       className={cn(
         'pointer-events-auto w-[min(22rem,calc(100vw-2rem))] touch-pan-y rounded-2xl border p-4 shadow-lg backdrop-blur transition-all duration-300',
@@ -108,7 +117,7 @@ function ToastCard({
         </div>
         <button
           type="button"
-          className="rounded-full p-1 transition hover:bg-black/5"
+          className="rounded-full p-1 transition hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
           aria-label="Dismiss notification"
           onClick={() => {
             setIsLeaving(true);
@@ -153,7 +162,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-3" aria-live="polite" aria-label="Notifications">
+      <div
+        role="region"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-atomic="false"
+        aria-label="Notifications"
+        className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-3"
+      >
         {visibleToasts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
         ))}
