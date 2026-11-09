@@ -9,17 +9,82 @@ import {
   Networks, SorobanRpc, Contract, TransactionBuilder,
   BASE_FEE, nativeToScVal, xdr, Address,
 } from '@stellar/stellar-sdk';
-import { signTx } from './freighter';
+import { getWalletNetwork, signTx } from './freighter';
 
 const RPC_URL     = process.env.NEXT_PUBLIC_STELLAR_RPC_URL!;
 const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
 const NETWORK     = process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet';
 const PASSPHRASE  = NETWORK === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
 
+export class WrongStellarNetworkError extends Error {
+  readonly code = 'WRONG_NETWORK' as const;
+  readonly expectedNetwork: 'TESTNET' | 'PUBLIC';
+  readonly actualNetwork: string;
+  readonly recoverable = true as const;
+  readonly retryable = true as const;
+
+  constructor(expectedNetwork: 'TESTNET' | 'PUBLIC', actualNetwork: string) {
+    const expectedLabel = expectedNetwork === 'TESTNET' ? 'Stellar Testnet' : 'Stellar Mainnet (PUBLIC)';
+    const actualLabel =
+      actualNetwork.toUpperCase() === 'PUBLIC' || actualNetwork.toUpperCase() === 'MAINNET'
+        ? 'Mainnet (PUBLIC)'
+        : actualNetwork || 'an unsupported network';
+    super(
+      `Wrong network in Freighter: your wallet is connected to ${actualLabel}, but SorobanLard requires ${expectedLabel}. Please switch Freighter to ${expectedNetwork === 'TESTNET' ? 'Testnet' : 'Mainnet'} and try again.`,
+    );
+    this.name = 'WrongStellarNetworkError';
+    this.expectedNetwork = expectedNetwork;
+    this.actualNetwork = actualNetwork;
+  }
+}
+
+function normalizeNetworkName(raw: unknown): string {
+  if (!raw) return '';
+  if (typeof raw === 'string') {
+    const upper = raw.trim().toUpperCase();
+    if (upper === 'MAINNET' || upper.includes('PUBLIC GLOBAL STELLAR NETWORK')) return 'PUBLIC';
+    if (upper.includes('TEST SDF NETWORK')) return 'TESTNET';
+    return upper;
+  }
+  if (typeof raw === 'object') {
+    const record = raw as Record<string, unknown>;
+    if (typeof record.network === 'string' && record.network.trim()) {
+      return normalizeNetworkName(record.network);
+    }
+    if (typeof record.networkPassphrase === 'string' && record.networkPassphrase.trim()) {
+      return normalizeNetworkName(record.networkPassphrase);
+    }
+  }
+  return '';
+}
+
+/**
+ * Verifies that the active Freighter wallet network matches the application's configured
+ * Stellar network (`TESTNET` by default, or `PUBLIC` when `NEXT_PUBLIC_STELLAR_NETWORK=mainnet`).
+ * Throws `WrongStellarNetworkError` before any transaction is built or signed if mismatched.
+ */
+export async function assertExpectedWalletNetwork(
+  configuredNetwork: string = NETWORK,
+): Promise<void> {
+  const expected: 'TESTNET' | 'PUBLIC' =
+    configuredNetwork.toLowerCase() === 'mainnet' || configuredNetwork.toUpperCase() === 'PUBLIC'
+      ? 'PUBLIC'
+      : 'TESTNET';
+
+  const walletNetworkRaw = await getWalletNetwork();
+  const actual = normalizeNetworkName(walletNetworkRaw);
+
+  if (actual && actual !== expected) {
+    throw new WrongStellarNetworkError(expected, actual);
+  }
+}
+
 let _rpc: SorobanRpc.Server;
 const getRpc = () => (_rpc ??= new SorobanRpc.Server(RPC_URL, { allowHttp: true }));
 
 async function invokeContract(caller: string, method: string, args: xdr.ScVal[]): Promise<string> {
+  await assertExpectedWalletNetwork();
+
   const rpc      = getRpc();
   const contract = new Contract(CONTRACT_ID);
   const account  = await rpc.getAccount(caller);
@@ -61,6 +126,7 @@ async function waitForTx(hash: string): Promise<string> {
  * Resolves with the transaction hash once the transaction is confirmed on-chain.
  *
  * Rejects with an `Error` whose message says which step failed:
+ * - `WrongStellarNetworkError` when Freighter is connected to Mainnet instead of Testnet (or vice versa).
  * - `Simulation: <reason>` when the contract rejects the call. Signing has not been requested yet.
  * - `Submission failed` when the RPC server rejects the signed transaction.
  * - `Transaction failed: <hash>` when the transaction is included but fails on-chain.
