@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import RatingSummary from "./RatingSummary";
+import { RatingSummary } from "./RatingSummary";
 
-interface Review {
+export interface Review {
   id: string;
   reviewer: {
     name: string;
@@ -23,9 +23,17 @@ type VoteState = "up" | "down" | null;
 
 interface ReviewsListProps {
   reviews: Review[];
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
-export default function ReviewsList({ reviews }: ReviewsListProps) {
+export default function ReviewsList({
+  reviews,
+  isLoading = false,
+  error = null,
+  onRetry,
+}: ReviewsListProps) {
   const [sortBy, setSortBy] = useState("mostRecent");
   const [reviewList, setReviewList] = useState(reviews);
   const [visibleCount, setVisibleCount] = useState(5);
@@ -88,6 +96,48 @@ export default function ReviewsList({ reviews }: ReviewsListProps) {
     );
   };
 
+  if (isLoading) {
+    return (
+      <div
+        data-testid="reviews-loading"
+        role="status"
+        aria-live="polite"
+        className="space-y-4 rounded-xl border border-ink-100 p-6"
+      >
+        <p className="text-sm font-medium text-ink-500 text-center">
+          Loading course reviews…
+        </p>
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <div key={idx} className="h-24 rounded-xl bg-ink-50 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        data-testid="reviews-error"
+        role="alert"
+        className="rounded-xl border border-red-200 bg-red-50/40 p-8 text-center space-y-3"
+      >
+        <p className="text-sm font-semibold text-red-900">
+          Unable to load reviews
+        </p>
+        <p className="text-xs text-red-700 max-w-md mx-auto">{error}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center rounded-lg bg-sorobanlard-primary px-4 py-2 text-xs font-semibold text-white hover:bg-sorobanlard-mid transition-colors"
+          >
+            Try again
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <RatingSummary
@@ -110,8 +160,14 @@ export default function ReviewsList({ reviews }: ReviewsListProps) {
       </div>
 
       {sortedReviews.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-ink-200 p-8 text-center">
-          <p className="text-ink-500">No reviews yet.</p>
+        <div
+          data-testid="reviews-empty"
+          className="rounded-xl border border-dashed border-ink-200 p-8 text-center space-y-1"
+        >
+          <p className="font-medium text-ink-700">No reviews yet.</p>
+          <p className="text-xs text-ink-500">
+            Be the first student to leave a review after completing this course.
+          </p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -228,8 +284,6 @@ export default function ReviewsList({ reviews }: ReviewsListProps) {
           </button>
         </div>
       )}
-
-      {/* Empty State */}
     </div>
   );
 }
