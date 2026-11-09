@@ -20,6 +20,9 @@ interface Props {
   referralCode: string;
   stats: ReferralStats;
   referrals: Referral[];
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 const statusStyles = {
@@ -32,6 +35,9 @@ export default function ReferralDashboard({
   referralCode,
   stats,
   referrals,
+  isLoading = false,
+  error = null,
+  onRetry,
 }: Props) {
   const [copied, setCopied] = useState(false);
 
@@ -128,81 +134,129 @@ export default function ReferralDashboard({
         </div>
       </section>
 
-      {/* Stats */}
-      <section>
-        <h2 className="section-heading">Referral stats</h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="card p-5">
-            <p className="text-sm text-ink-500">Referrals sent</p>
-            <p className="text-2xl font-semibold mt-2">{stats.sent}</p>
-          </div>
-
-          <div className="card p-5">
-            <p className="text-sm text-ink-500">Referrals enrolled</p>
-            <p className="text-2xl font-semibold mt-2">{stats.enrolled}</p>
-          </div>
-
-          <div className="card p-5">
-            <p className="text-sm text-ink-500">Rewards earned</p>
-            <p className="text-2xl font-semibold mt-2">
-              {stats.rewardsEarned.toLocaleString()} XLM
-            </p>
+      {isLoading ? (
+        <div
+          data-testid="referral-dashboard-loading"
+          role="status"
+          aria-live="polite"
+          className="card p-8 space-y-4"
+        >
+          <p className="text-sm font-medium text-ink-500 text-center">
+            Loading referral stats and rewards…
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="h-24 rounded-xl bg-ink-100 animate-pulse" />
+            ))}
           </div>
         </div>
-      </section>
-
-      {/* Rewards */}
-      <section>
-        <h2 className="section-heading">Referral rewards</h2>
-
-        <div className="card overflow-hidden">
-          {referrals.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-sm text-ink-500">
-                You haven&apos;t earned any referral rewards yet.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-ink-100">
-                    <th className="text-left font-medium px-5 py-4">Friend</th>
-                    <th className="text-left font-medium px-5 py-4">Course</th>
-                    <th className="text-left font-medium px-5 py-4">Reward</th>
-                    <th className="text-left font-medium px-5 py-4">Status</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {referrals.map((referral) => (
-                    <tr
-                      key={referral.id}
-                      className="border-b border-ink-100 last:border-0"
-                    >
-                      <td className="px-5 py-4">{referral.friendName}</td>
-                      <td className="px-5 py-4">{referral.courseName}</td>
-                      <td className="px-5 py-4">
-                        {referral.rewardAmount.toLocaleString()} XLM
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                            statusStyles[referral.payoutStatus]
-                          }`}
-                        >
-                          {referral.payoutStatus}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      ) : error ? (
+        <div
+          data-testid="referral-dashboard-error"
+          role="alert"
+          className="card p-8 text-center space-y-3 border-red-200 bg-red-50/40"
+        >
+          <h2 className="text-base font-semibold text-red-900">
+            Unable to load referral stats
+          </h2>
+          <p className="text-sm text-red-700 max-w-md mx-auto">{error}</p>
+          {onRetry && (
+            <div>
+              <button
+                type="button"
+                onClick={onRetry}
+                className="btn-primary text-xs px-4 py-2"
+              >
+                Try again
+              </button>
             </div>
           )}
         </div>
-      </section>
+      ) : (
+        <>
+          {/* Stats */}
+          <section>
+            <h2 className="section-heading">Referral stats</h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="card p-5">
+                <p className="text-sm text-ink-500">Referrals sent</p>
+                <p className="text-2xl font-semibold mt-2">{stats.sent}</p>
+              </div>
+
+              <div className="card p-5">
+                <p className="text-sm text-ink-500">Referrals enrolled</p>
+                <p className="text-2xl font-semibold mt-2">{stats.enrolled}</p>
+              </div>
+
+              <div className="card p-5">
+                <p className="text-sm text-ink-500">Rewards earned</p>
+                <p className="text-2xl font-semibold mt-2">
+                  {stats.rewardsEarned.toLocaleString()} XLM
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Rewards */}
+          <section>
+            <h2 className="section-heading">Referral rewards</h2>
+
+            <div className="card overflow-hidden">
+              {referrals.length === 0 ? (
+                <div
+                  data-testid="referral-dashboard-empty"
+                  className="p-8 text-center space-y-2"
+                >
+                  <p className="text-sm font-semibold text-ink-800">
+                    No referrals yet
+                  </p>
+                  <p className="text-sm text-ink-500">
+                    You haven&apos;t earned any referral rewards yet. Share your referral link above to start earning XLM.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-ink-100">
+                        <th className="text-left font-medium px-5 py-4">Friend</th>
+                        <th className="text-left font-medium px-5 py-4">Course</th>
+                        <th className="text-left font-medium px-5 py-4">Reward</th>
+                        <th className="text-left font-medium px-5 py-4">Status</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {referrals.map((referral) => (
+                        <tr
+                          key={referral.id}
+                          className="border-b border-ink-100 last:border-0"
+                        >
+                          <td className="px-5 py-4">{referral.friendName}</td>
+                          <td className="px-5 py-4">{referral.courseName}</td>
+                          <td className="px-5 py-4">
+                            {referral.rewardAmount.toLocaleString()} XLM
+                          </td>
+                          <td className="px-5 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                                statusStyles[referral.payoutStatus]
+                              }`}
+                            >
+                              {referral.payoutStatus}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
 
       {/* How it works */}
       <section>
