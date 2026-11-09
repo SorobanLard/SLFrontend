@@ -1,12 +1,16 @@
 'use client';
 
+import { AlertCircle, Loader2, RefreshCw, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LeaderboardEntry } from '@/types';
 
-interface LeaderboardTableProps {
+export interface LeaderboardTableProps {
   entries: LeaderboardEntry[];
   currentUserId?: string | null;
   currentUserEntry?: LeaderboardEntry | null;
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 const MEDAL: Record<number, { emoji: string; label: string; rowClass: string; rankClass: string }> = {
@@ -138,7 +142,80 @@ export function LeaderboardTable({
   entries,
   currentUserId,
   currentUserEntry,
+  loading = false,
+  error = null,
+  onRetry,
 }: LeaderboardTableProps) {
+  if (loading) {
+    return (
+      <div
+        role="status"
+        aria-busy="true"
+        aria-live="polite"
+        data-testid="leaderboard-loading"
+        className="overflow-hidden rounded-2xl border border-ink-100 bg-white p-8 shadow-sm"
+      >
+        <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
+          <Loader2
+            className="h-6 w-6 animate-spin text-saffron-500"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-medium text-ink-600">Loading leaderboard rankings…</p>
+        </div>
+        <div className="mt-4 space-y-2.5" aria-hidden="true">
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <div
+              key={idx}
+              className="h-11 w-full animate-pulse rounded-xl bg-ink-50"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        data-testid="leaderboard-error"
+        className="overflow-hidden rounded-2xl border border-red-100 bg-red-50 px-6 py-10 text-center shadow-sm"
+      >
+        <AlertCircle className="mx-auto mb-3 h-7 w-7 text-red-500" aria-hidden="true" />
+        <p className="text-sm font-semibold text-red-800">Unable to load leaderboard</p>
+        <p className="mt-1 text-sm text-red-700">{error}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="btn-secondary mt-4 inline-flex items-center gap-1.5 text-sm"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div
+        role="status"
+        data-testid="leaderboard-empty"
+        className="overflow-hidden rounded-2xl border border-ink-100 bg-white px-6 py-14 text-center shadow-sm"
+      >
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-saffron-50 text-saffron-600">
+          <Trophy className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <p className="text-base font-semibold text-ink-900">No ranked students yet</p>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-ink-400">
+          No data for this period yet. Keep learning and complete lessons to claim the top spot!
+        </p>
+      </div>
+    );
+  }
+
   const isCurrentUser = (entry: LeaderboardEntry) =>
     !!currentUserId && entry.userId === currentUserId;
 
@@ -214,12 +291,6 @@ export function LeaderboardTable({
           </tbody>
         </table>
       </div>
-
-      {entries.length === 0 && (
-        <div className="py-16 text-center text-sm text-ink-400">
-          No data for this period yet. Keep learning!
-        </div>
-      )}
     </div>
   );
 }

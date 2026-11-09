@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Loader2, Trophy } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Trophy } from 'lucide-react';
 import { leaderboardApi } from '@/lib/api/services';
 import { LeaderboardTable } from '@/components/leaderboard/LeaderboardTable';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
@@ -23,7 +23,7 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadLeaderboard = useCallback(() => {
     setLoading(true);
     setError(null);
     leaderboardApi
@@ -32,6 +32,10 @@ export default function LeaderboardPage() {
       .catch(() => setError('Failed to load leaderboard. Please try again.'))
       .finally(() => setLoading(false));
   }, [period]);
+
+  useEffect(() => {
+    loadLeaderboard();
+  }, [loadLeaderboard]);
 
   // Derive current-user entry from API response or inject a placeholder
   const currentUserEntry: LeaderboardEntry | null =
@@ -97,7 +101,7 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Top-3 podium summary (decorative) */}
-        {!loading && data && data.entries.length >= 3 && (
+        {!loading && !error && data && data.entries.length >= 3 && (
           <div className="grid grid-cols-3 gap-3">
             {/* 2nd */}
             <PodiumCard entry={data.entries[1]} position={2} />
@@ -108,32 +112,15 @@ export default function LeaderboardPage() {
           </div>
         )}
 
-        {/* Table */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2
-              className="h-6 w-6 animate-spin text-saffron-500"
-              aria-label="Loading leaderboard"
-            />
-          </div>
-        ) : error ? (
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-8 text-center">
-            <p className="text-sm text-red-700">{error}</p>
-            <button
-              type="button"
-              className="btn-secondary mt-4 text-sm"
-              onClick={() => setPeriod((p) => p)}
-            >
-              Retry
-            </button>
-          </div>
-        ) : (
-          <LeaderboardTable
-            entries={data?.entries ?? []}
-            currentUserId={user?.id ?? null}
-            currentUserEntry={currentUserEntry}
-          />
-        )}
+        {/* Table with distinct loading, error, empty, and populated states */}
+        <LeaderboardTable
+          entries={data?.entries ?? []}
+          currentUserId={user?.id ?? null}
+          currentUserEntry={currentUserEntry}
+          loading={loading}
+          error={error}
+          onRetry={loadLeaderboard}
+        />
 
         <p className="text-center text-xs text-ink-400">
           Rankings update every hour · Keep learning to climb the board 🚀
