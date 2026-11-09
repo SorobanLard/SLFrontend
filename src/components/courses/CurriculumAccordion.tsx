@@ -280,7 +280,8 @@ export function CurriculumAccordion({
         <button
           type="button"
           onClick={toggleAll}
-          className="text-sm font-medium text-sorobanlard-primary transition-colors hover:text-sorobanlard-mid"
+          aria-expanded={allExpanded}
+          className="rounded-lg px-2 py-1 text-sm font-medium text-sorobanlard-primary transition-colors hover:text-sorobanlard-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sorobanlard-primary"
         >
           {allExpanded ? 'Collapse All' : 'Expand All'}
         </button>
@@ -290,6 +291,8 @@ export function CurriculumAccordion({
       <div className="divide-y divide-ink-100 rounded-xl border border-ink-200 overflow-hidden">
         {data.map((mod) => {
           const isOpen = expandedIds.has(mod.id);
+          const headerId = `curriculum-header-${mod.id}`;
+          const panelId = `curriculum-panel-${mod.id}`;
           const lectureCount = mod.lessons.length;
           const sectionSecs = mod.lessons.reduce(
             (sum, l) => sum + (l.videoDuration ?? 0),
@@ -306,26 +309,31 @@ export function CurriculumAccordion({
           return (
             <div key={mod.id}>
               {/* Section header */}
-              <button
-                type="button"
-                onClick={() => toggleSection(mod.id)}
-                aria-expanded={isOpen}
-                className="flex w-full items-center gap-3 bg-ink-50 px-4 py-3.5 text-left transition-colors hover:bg-ink-100"
-              >
-                <ChevronDown
-                  className={cn(
-                    'h-4 w-4 flex-shrink-0 text-ink-500 transition-transform duration-200',
-                    isOpen && 'rotate-180',
-                  )}
-                />
-                <span className="flex-1 text-sm font-semibold text-ink-900">
-                  {mod.title}
-                </span>
-                <span className="hidden text-xs text-ink-500 sm:inline">
-                  {lectureCount} lecture{lectureCount !== 1 ? 's' : ''} &middot;{' '}
-                  {formatSectionDuration(sectionSecs)}
-                </span>
-              </button>
+              <h3>
+                <button
+                  id={headerId}
+                  type="button"
+                  onClick={() => toggleSection(mod.id)}
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  className="flex w-full items-center gap-3 bg-ink-50 px-4 py-3.5 text-left transition-colors hover:bg-ink-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sorobanlard-primary"
+                >
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={cn(
+                      'h-4 w-4 flex-shrink-0 text-ink-500 transition-transform duration-200',
+                      isOpen && 'rotate-180',
+                    )}
+                  />
+                  <span className="flex-1 text-sm font-semibold text-ink-900">
+                    {mod.title}
+                  </span>
+                  <span className="hidden text-xs text-ink-500 sm:inline">
+                    {lectureCount} lecture{lectureCount !== 1 ? 's' : ''} &middot;{' '}
+                    {formatSectionDuration(sectionSecs)}
+                  </span>
+                </button>
+              </h3>
 
               {/* Per-module progress */}
               <div className="flex items-center gap-2 bg-ink-50 px-4 pb-3">
@@ -347,42 +355,52 @@ export function CurriculumAccordion({
                 </span>
               </div>
 
-              {/* Lessons list */}
-              {isOpen && (
-                <ul className="animate-fade-in">
-                  {mod.lessons.map((lesson) => (
-                    <li
-                      key={lesson.id}
-                      className={cn(
-                        'flex items-center gap-3 border-t border-ink-100 px-4 py-3',
-                        lesson.id === activeLessonId && 'bg-sorobanlard-primary/5',
-                      )}
-                    >
-                      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-500">
-                        {lesson.type === 'VIDEO' ? (
-                          <Play className="h-3 w-3" />
-                        ) : (
-                          <Eye className="h-3 w-3" />
+              {/* Lessons disclosure panel */}
+              <div
+                id={panelId}
+                role="region"
+                aria-labelledby={headerId}
+                hidden={!isOpen}
+              >
+                {isOpen && (
+                  <ul className="animate-fade-in">
+                    {mod.lessons.map((lesson) => (
+                      <li
+                        key={lesson.id}
+                        className={cn(
+                          'flex items-center gap-3 border-t border-ink-100 px-4 py-3',
+                          lesson.id === activeLessonId && 'bg-sorobanlard-primary/5',
                         )}
-                      </span>
-                      <span className="flex-1 text-sm text-ink-700">
-                        {lesson.title}
-                      </span>
-                      {lesson.isFree && (
-                        <span className="rounded bg-sorobanlard-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-sorobanlard-primary">
-                          Free
+                      >
+                        <span
+                          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-ink-100 text-ink-500"
+                          aria-hidden="true"
+                        >
+                          {lesson.type === 'VIDEO' ? (
+                            <Play className="h-3 w-3" aria-hidden="true" />
+                          ) : (
+                            <Eye className="h-3 w-3" aria-hidden="true" />
+                          )}
                         </span>
-                      )}
-                      {lesson.videoDuration != null && (
-                        <span className="flex items-center gap-1 text-xs text-ink-400">
-                          <Clock className="h-3 w-3" />
-                          {formatLectureDuration(lesson.videoDuration)}
+                        <span className="flex-1 text-sm text-ink-700">
+                          {lesson.title}
                         </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
+                        {lesson.isFree && (
+                          <span className="rounded bg-sorobanlard-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-sorobanlard-primary">
+                            Free
+                          </span>
+                        )}
+                        {lesson.videoDuration != null && (
+                          <span className="flex items-center gap-1 text-xs text-ink-400">
+                            <Clock className="h-3 w-3" aria-hidden="true" />
+                            {formatLectureDuration(lesson.videoDuration)}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           );
         })}
