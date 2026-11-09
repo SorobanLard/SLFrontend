@@ -111,7 +111,7 @@
     @apply btn bg-red-600 text-white hover:bg-red-700;
   }
   .btn-leaf {
-    @apply btn bg-leaf-600 text-white hover:bg-leaf-700;
+    @apply btn bg-leaf-700 text-white hover:bg-leaf-600;
   }
   .card {
     @apply rounded-2xl border;
@@ -158,30 +158,48 @@
   }
   .badge-active {
     @apply badge bg-leaf-50 text-leaf-700;
+    background-color: var(--color-badge-active-bg);
+    color: var(--color-badge-active-text);
   }
   .badge-pending {
     @apply badge bg-saffron-50 text-saffron-700;
+    background-color: var(--color-badge-pending-bg);
+    color: var(--color-badge-pending-text);
   }
   .badge-draft {
     @apply badge bg-ink-100 text-ink-700;
+    background-color: var(--color-badge-draft-bg);
+    color: var(--color-badge-draft-text);
   }
   .badge-paused {
     @apply badge bg-orange-50 text-orange-700;
+    background-color: var(--color-badge-paused-bg);
+    color: var(--color-badge-paused-text);
   }
   .badge-archived {
-    @apply badge bg-ink-100 text-ink-500;
+    @apply badge bg-ink-100 text-ink-600;
+    background-color: var(--color-badge-archived-bg);
+    color: var(--color-badge-archived-text);
   }
   .badge-free {
     @apply badge bg-leaf-50 text-leaf-700;
+    background-color: var(--color-badge-active-bg);
+    color: var(--color-badge-active-text);
   }
   .chip-beginner {
     @apply badge bg-blue-50 text-blue-700;
+    background-color: var(--color-chip-beginner-bg);
+    color: var(--color-chip-beginner-text);
   }
   .chip-intermediate {
     @apply badge bg-purple-50 text-purple-700;
+    background-color: var(--color-chip-intermediate-bg);
+    color: var(--color-chip-intermediate-text);
   }
   .chip-advanced {
     @apply badge bg-red-50 text-red-700;
+    background-color: var(--color-chip-advanced-bg);
+    color: var(--color-chip-advanced-text);
   }
   .progress-bar {
     @apply w-full h-2 bg-ink-100 rounded-full overflow-hidden;

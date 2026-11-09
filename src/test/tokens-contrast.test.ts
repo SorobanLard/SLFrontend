@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { courseStatusBadge, levelChip } from '@/lib/utils';
+import type { CourseStatus } from '@/types';
 
 function resolveHexValue(css: string, value: string): string {
   if (value.startsWith('#')) {
@@ -133,6 +135,8 @@ describe('design token contrast ratios', () => {
     expect(contrastRatio(darkTextLink, darkBgSurface)).toBeGreaterThanOrEqual(4.5);
     // Range label / empty-state text: text-muted on bg-surface (dark)
     expect(contrastRatio(darkTextMuted, darkBgSurface)).toBeGreaterThanOrEqual(4.5);
+  });
+
   // -----------------------------------------------------------------------
   // Dark mode contrast ratios
   // Ensures the [data-theme='dark'] token overrides meet WCAG AA thresholds.
@@ -215,6 +219,69 @@ describe('design token contrast ratios', () => {
 
       // At minimum 3:1 so it reads as a visible particle
       expect(contrastRatio(darkConfettiDark, bgPage)).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Component-level badge and status pill contrast ratios (Issue #219)
+  // Audits all courseStatusBadge and levelChip color combinations in both
+  // light mode and dark mode against WCAG 2.1 AA normal text (>= 4.5:1).
+  // -----------------------------------------------------------------------
+  describe('component badge and status pill contrast ratios (Issue #219)', () => {
+    const statuses: CourseStatus[] = ['ACTIVE', 'PENDING', 'DRAFT', 'PAUSED', 'ARCHIVED'];
+    const levels = ['Beginner', 'Intermediate', 'Advanced'];
+
+    it('courseStatusBadge light-mode tokens all meet WCAG AA (>= 4.5:1)', () => {
+      const css = readFileSync(path.resolve(__dirname, '../styles/tokens.css'), 'utf8');
+      const globalsCss = readFileSync(path.resolve(__dirname, '../styles/globals.css'), 'utf8');
+
+      for (const status of statuses) {
+        const badgeClass = courseStatusBadge(status);
+        const key = status.toLowerCase();
+        const bg = getHexToken(css, `color-badge-${key}-bg`);
+        const text = getHexToken(css, `color-badge-${key}-text`);
+
+        expect(globalsCss).toContain(`.${badgeClass}`);
+        expect(contrastRatio(text, bg)).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it('courseStatusBadge dark-mode tokens all meet WCAG AA (>= 4.5:1)', () => {
+      const css = readFileSync(path.resolve(__dirname, '../styles/tokens.css'), 'utf8');
+
+      for (const status of statuses) {
+        const key = status.toLowerCase();
+        const bg = getDarkModeToken(css, `color-badge-${key}-bg`);
+        const text = getDarkModeToken(css, `color-badge-${key}-text`);
+
+        expect(contrastRatio(text, bg)).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it('levelChip light-mode and dark-mode tokens meet WCAG AA (>= 4.5:1)', () => {
+      const css = readFileSync(path.resolve(__dirname, '../styles/tokens.css'), 'utf8');
+      const globalsCss = readFileSync(path.resolve(__dirname, '../styles/globals.css'), 'utf8');
+
+      for (const level of levels) {
+        const chipClass = levelChip(level);
+        const key = level.toLowerCase();
+        const lightBg = getHexToken(css, `color-chip-${key}-bg`);
+        const lightText = getHexToken(css, `color-chip-${key}-text`);
+        const darkBg = getDarkModeToken(css, `color-chip-${key}-bg`);
+        const darkText = getDarkModeToken(css, `color-chip-${key}-text`);
+
+        expect(globalsCss).toContain(`.${chipClass}`);
+        expect(contrastRatio(lightText, lightBg)).toBeGreaterThanOrEqual(4.5);
+        expect(contrastRatio(darkText, darkBg)).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it('prevents low-contrast ink-500 on ink-100 archived status pill regression', () => {
+      const globalsCss = readFileSync(path.resolve(__dirname, '../styles/globals.css'), 'utf8');
+      const archivedBlock = globalsCss.match(/\.badge-archived\s*\{([^}]+)\}/)?.[1] ?? '';
+
+      expect(archivedBlock).not.toContain('text-ink-500');
+      expect(archivedBlock).toContain('text-ink-600');
     });
   });
 });
