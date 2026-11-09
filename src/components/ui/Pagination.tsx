@@ -58,14 +58,16 @@ export function Pagination({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Determine effective active page from prop or URL
-  const urlParamValue = searchParams?.get(paramName);
-  const parsedUrlPage = urlParamValue ? parseInt(urlParamValue, 10) : 1;
-  const activePage = currentPage ?? (isNaN(parsedUrlPage) || parsedUrlPage < 1 ? 1 : parsedUrlPage);
-
   // Determine effective total pages
   const finalTotalPages =
     totalPages ?? (totalItems !== undefined && itemsPerPage > 0 ? Math.ceil(totalItems / itemsPerPage) : 0);
+
+  // Determine effective active page from prop or URL, clamped to valid range
+  const urlParamValue = searchParams?.get(paramName);
+  const parsedUrlPage = urlParamValue ? parseInt(urlParamValue, 10) : 1;
+  const rawActivePage = currentPage ?? (isNaN(parsedUrlPage) || parsedUrlPage < 1 ? 1 : parsedUrlPage);
+  const activePage =
+    finalTotalPages > 0 ? Math.min(Math.max(rawActivePage, 1), finalTotalPages) : Math.max(rawActivePage, 1);
 
   const pageButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
   const hasMounted = useRef(false);
@@ -92,7 +94,13 @@ export function Pagination({
     }
 
     if (updateUrl && router && pathname) {
-      const params = new URLSearchParams(searchParams ? searchParams.toString() : '');
+      const serializedSearch =
+        searchParams &&
+        typeof searchParams.toString === 'function' &&
+        searchParams.toString !== Object.prototype.toString
+          ? searchParams.toString()
+          : '';
+      const params = new URLSearchParams(serializedSearch);
       params.set(paramName, String(newPage));
       const queryString = params.toString();
       const targetUrl = queryString ? `${pathname}?${queryString}` : pathname;
@@ -140,13 +148,18 @@ export function Pagination({
         onClick={() => handlePageChange(activePage - 1)}
         disabled={activePage <= 1}
         aria-label="Go to previous page"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ink-200 text-ink-600 transition-colors hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-40"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ink-200 text-ink-600 transition-colors hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7F77DD] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40"
       >
         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       </button>
 
       {/* ── Mobile label ── */}
-      <span className="sm:hidden px-3 py-1.5 text-sm text-ink-600">
+      <span
+        className="sm:hidden px-3 py-1.5 text-sm text-ink-600"
+        aria-current="page"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         Page {activePage} of {finalTotalPages}
       </span>
 
@@ -173,7 +186,7 @@ export function Pagination({
               aria-label={`Page ${item}`}
               aria-current={item === activePage ? 'page' : undefined}
               className={cn(
-                'inline-flex h-9 w-9 items-center justify-center rounded-xl text-sm font-medium transition-all',
+                'inline-flex h-9 w-9 items-center justify-center rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7F77DD] focus-visible:ring-offset-1',
                 item === activePage
                   ? 'bg-[#7F77DD] text-white shadow-sm font-semibold'
                   : 'border border-ink-200 text-ink-600 hover:bg-ink-50',
@@ -191,7 +204,7 @@ export function Pagination({
         onClick={() => handlePageChange(activePage + 1)}
         disabled={activePage >= finalTotalPages}
         aria-label="Go to next page"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ink-200 text-ink-600 transition-colors hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-40"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-ink-200 text-ink-600 transition-colors hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7F77DD] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40"
       >
         <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </button>
@@ -218,7 +231,7 @@ export function Pagination({
           onClick={handleJump}
           disabled={jumpValue.trim() === ''}
           aria-label="Go to entered page"
-          className="inline-flex h-9 items-center justify-center rounded-xl border border-ink-200 px-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-9 items-center justify-center rounded-xl border border-ink-200 px-3 text-sm font-medium text-ink-600 transition-colors hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7F77DD] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Go
         </button>

@@ -117,4 +117,45 @@ describe('Pagination jump-to-page', () => {
       expect(container.firstChild).toBeNull();
     });
   });
+
+  describe('aria-current state and keyboard accessibility (Issue #223)', () => {
+    it('sets aria-current="page" only on the active page button', () => {
+      render(<Pagination currentPage={3} totalPages={5} updateUrl={false} />);
+
+      const activeBtn = screen.getByRole('button', { name: 'Page 3' });
+      expect(activeBtn).toHaveAttribute('aria-current', 'page');
+
+      for (const page of [1, 2, 4, 5]) {
+        expect(screen.getByRole('button', { name: `Page ${page}` })).not.toHaveAttribute('aria-current');
+      }
+    });
+
+    it('updates aria-current="page" and moves focus when active page changes', () => {
+      const { rerender } = render(<Pagination currentPage={2} totalPages={5} updateUrl={false} />);
+      expect(screen.getByRole('button', { name: 'Page 2' })).toHaveAttribute('aria-current', 'page');
+
+      rerender(<Pagination currentPage={4} totalPages={5} updateUrl={false} />);
+      const page4Button = screen.getByRole('button', { name: 'Page 4' });
+      expect(page4Button).toHaveAttribute('aria-current', 'page');
+      expect(screen.getByRole('button', { name: 'Page 2' })).not.toHaveAttribute('aria-current');
+      expect(document.activeElement).toBe(page4Button);
+    });
+
+    it('clamps out-of-range currentPage so an active control always exposes aria-current="page"', () => {
+      render(<Pagination currentPage={99} totalPages={5} updateUrl={false} />);
+      expect(screen.getByRole('button', { name: 'Page 5' })).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('supports keyboard ArrowLeft and ArrowRight navigation on the pagination landmark', () => {
+      const onPageChange = vi.fn();
+      render(<Pagination currentPage={3} totalPages={5} onPageChange={onPageChange} updateUrl={false} />);
+
+      const nav = screen.getByRole('navigation', { name: 'Pagination' });
+      fireEvent.keyDown(nav, { key: 'ArrowRight' });
+      expect(onPageChange).toHaveBeenLastCalledWith(4);
+
+      fireEvent.keyDown(nav, { key: 'ArrowLeft' });
+      expect(onPageChange).toHaveBeenLastCalledWith(2);
+    });
+  });
 });
