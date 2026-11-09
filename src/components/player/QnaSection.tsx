@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { QnaQuestionForm } from './QnaQuestionForm';
 import { QnaFilterBar } from './QnaFilterBar';
@@ -17,22 +17,15 @@ interface QnaSectionProps {
   onSubmitQuestion?: (title: string, body: string) => Promise<void>;
   onSubmitReply?: (questionId: string, text: string) => Promise<void>;
   onUpvote?: (questionId: string) => Promise<void> | void;
+  /** True while questions for this lesson are still loading */
+  isLoading?: boolean;
+  /** Error message when fetching lesson questions fails */
+  error?: string | null;
+  /** Retry handler for the error state */
+  onRetry?: () => void;
   className?: string;
 }
 
-/**
- * QnaSection
- *
- * Full Q&A discussion block for the lesson video player. Composes:
- *  - QnaQuestionForm  (title + body submission)
- *  - QnaFilterBar     (search, sort by recent/upvoted, filter all/mine/unanswered)
- *  - QuestionCard[]   (question list, filtered + sorted, each with an
- *                      expandable reply thread and nested reply form)
- *
- * State is local so the section works standalone; the optional
- * onSubmitQuestion / onSubmitReply / onUpvote callbacks are called first
- * (awaited) so a real API call can run before the optimistic UI update.
- */
 export function QnaSection({
   lessonTitle,
   questions: initialQuestions,
@@ -40,12 +33,19 @@ export function QnaSection({
   onSubmitQuestion,
   onSubmitReply,
   onUpvote,
+  isLoading = false,
+  error = null,
+  onRetry,
   className,
 }: QnaSectionProps) {
   const [questions, setQuestions] = useState<QnaQuestion[]>(initialQuestions);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<QnaSortOption>('most_recent');
   const [filterBy, setFilterBy] = useState<QnaFilterOption>('all');
+
+  useEffect(() => {
+    setQuestions(initialQuestions);
+  }, [initialQuestions]);
 
   async function handleNewQuestion(title: string, body: string) {
     await onSubmitQuestion?.(title, body);
@@ -135,7 +135,7 @@ export function QnaSection({
 
       <QnaQuestionForm onSubmit={handleNewQuestion} />
 
-      {questions.length > 0 && (
+      {!isLoading && !error && questions.length > 0 && (
         <QnaFilterBar
           search={search}
           onSearchChange={setSearch}
@@ -147,8 +147,45 @@ export function QnaSection({
         />
       )}
 
-      {questions.length === 0 ? (
-        <div className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-10 text-center">
+      {isLoading ? (
+        <div
+          data-testid="qna-loading"
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-8 space-y-3"
+        >
+          <p className="text-sm font-medium text-semantic-text-muted text-center">
+            Loading lesson questions…
+          </p>
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div key={idx} className="h-20 rounded-xl bg-ink-100 animate-pulse" />
+          ))}
+        </div>
+      ) : error ? (
+        <div
+          data-testid="qna-error"
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50/40 p-8 text-center space-y-3"
+        >
+          <p className="text-sm font-semibold text-red-900">
+            Unable to load questions for this lesson
+          </p>
+          <p className="text-xs text-red-700 max-w-md mx-auto">{error}</p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center rounded-lg bg-sorobanlard-primary px-4 py-2 text-xs font-semibold text-white hover:bg-sorobanlard-mid transition-colors"
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      ) : questions.length === 0 ? (
+        <div
+          data-testid="qna-empty"
+          className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-10 text-center"
+        >
           <p className="text-2xl mb-3" aria-hidden="true">💬</p>
           <p className="text-sm font-medium text-sorobanlard-deep mb-1">No questions yet</p>
           <p className="text-xs text-semantic-text-muted">
