@@ -9,9 +9,7 @@ export type RevenuePreset = '3m' | '6m' | '12m' | 'custom';
 
 export interface RevenueDateRange {
   preset: RevenuePreset;
-  /** Inclusive start, yyyy-MM-dd */
   from: string;
-  /** Inclusive end, yyyy-MM-dd */
   to: string;
 }
 
@@ -23,7 +21,6 @@ const PRESETS: { value: Exclude<RevenuePreset, 'custom'>; label: string; months:
 
 const ISO_DAY = 'yyyy-MM-dd';
 
-/** Build the range for a preset: the start of the month N-1 months ago through today. */
 export const rangeForPreset = (preset: Exclude<RevenuePreset, 'custom'>): RevenueDateRange => {
   const months = PRESETS.find((p) => p.value === preset)?.months ?? 12;
   const today = new Date();
@@ -51,7 +48,6 @@ export function RevenueDateRangePicker({ value, onChange }: RevenueDateRangePick
   const today = format(new Date(), ISO_DAY);
   const draftInvalid = !draftFrom || !draftTo || draftFrom > draftTo || draftTo > today;
 
-  // Reset the draft to the current range whenever the popover opens
   useEffect(() => {
     if (customOpen) {
       setDraftFrom(value.from);
@@ -82,13 +78,17 @@ export function RevenueDateRangePicker({ value, onChange }: RevenueDateRangePick
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      data-testid="revenue-date-range-picker"
+      className="flex flex-wrap items-center gap-1.5 sm:gap-2 max-w-full min-w-0"
+    >
       {PRESETS.map((preset) => (
         <button
+          type="button"
           key={preset.value}
           onClick={() => onChange(rangeForPreset(preset.value))}
           className={cn(
-            'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+            'px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap',
             value.preset === preset.value
               ? 'bg-sorobanlard-primary text-white'
               : 'bg-ink-100 text-ink-700 hover:bg-ink-200',
@@ -98,28 +98,31 @@ export function RevenueDateRangePicker({ value, onChange }: RevenueDateRangePick
         </button>
       ))}
 
-      <div ref={popoverRef} className="relative">
+      <div ref={popoverRef} className="relative max-w-full">
         <button
+          type="button"
           onClick={() => setCustomOpen((o) => !o)}
           aria-haspopup="dialog"
           aria-expanded={customOpen}
           className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+            'flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-lg transition-colors max-w-full',
             value.preset === 'custom'
               ? 'bg-sorobanlard-primary text-white'
               : 'bg-ink-100 text-ink-700 hover:bg-ink-200',
           )}
         >
-          <Calendar className="w-3.5 h-3.5" />
-          {value.preset === 'custom' ? formatRangeLabel(value) : 'Custom'}
-          <ChevronDown className="w-3 h-3" />
+          <Calendar className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">
+            {value.preset === 'custom' ? formatRangeLabel(value) : 'Custom'}
+          </span>
+          <ChevronDown className="w-3 h-3 shrink-0" />
         </button>
 
         {customOpen && (
           <div
             role="dialog"
             aria-label="Select custom date range"
-            className="absolute right-0 mt-2 z-20 w-72 bg-white border border-ink-100 rounded-xl shadow-lg p-4 space-y-3"
+            className="absolute left-0 sm:left-auto sm:right-0 mt-2 z-20 w-[min(18rem,calc(100vw-2rem))] bg-white border border-ink-100 rounded-xl shadow-lg p-4 space-y-3"
           >
             <label className="block">
               <span className="block text-xs font-medium text-ink-600 mb-1">From</span>
@@ -147,12 +150,14 @@ export function RevenueDateRangePicker({ value, onChange }: RevenueDateRangePick
             )}
             <div className="flex justify-end gap-2 pt-1">
               <button
+                type="button"
                 onClick={() => setCustomOpen(false)}
                 className="px-3 py-1.5 text-xs font-medium rounded-lg text-ink-600 hover:bg-ink-100"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={applyCustom}
                 disabled={draftInvalid}
                 className="px-3 py-1.5 text-xs font-medium rounded-lg bg-sorobanlard-primary text-white disabled:opacity-40 disabled:cursor-not-allowed"
