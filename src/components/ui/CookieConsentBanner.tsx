@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { Check, Settings2, ShieldCheck, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, ShieldCheck, X } from 'lucide-react';
 import { useToast } from '@/lib/hooks/use-toast';
 
 type CookiePreferences = {
@@ -56,6 +56,10 @@ export function CookieConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [preferences, setPreferences] = useState<CookiePreferences>(defaultPreferences);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const manageButtonRef = useRef<HTMLButtonElement>(null);
+  const hasAutoFocusedBannerRef = useRef(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -67,6 +71,30 @@ export function CookieConsentBanner() {
 
     setPreferences(stored.preferences);
   }, []);
+
+  useEffect(() => {
+    if (isVisible && !hasAutoFocusedBannerRef.current) {
+      hasAutoFocusedBannerRef.current = true;
+      bannerRef.current?.focus();
+    }
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!isModalOpen) return;
+
+    dialogRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setIsModalOpen(false);
+        manageButtonRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isModalOpen]);
 
   const savePreferences = (
     nextPreferences: CookiePreferences,
@@ -112,9 +140,14 @@ export function CookieConsentBanner() {
   return (
     <>
       <div
-        className="fixed bottom-0 left-0 z-[60] w-full border-t border-[#D5D2F6] bg-[#26215C] px-4 py-4 text-white shadow-[0_-12px_40px_rgba(38,33,92,0.16)] sm:px-6 lg:px-8"
-        role="status"
+        ref={bannerRef}
+        tabIndex={-1}
+        className="fixed bottom-0 left-0 z-[60] w-full border-t border-[#D5D2F6] bg-[#26215C] px-4 py-4 text-white shadow-[0_-12px_40px_rgba(38,33,92,0.16)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#EEEDFE] sm:px-6 lg:px-8"
+        role="region"
+        aria-label="Cookie consent"
+        aria-describedby="cookie-consent-description"
         aria-live="polite"
+        aria-atomic="true"
       >
         <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3">
@@ -122,7 +155,7 @@ export function CookieConsentBanner() {
               <ShieldCheck className="h-5 w-5 text-[#EEEDFE]" aria-hidden="true" />
             </div>
             <div className="max-w-2xl">
-              <p className="text-sm font-semibold leading-6">
+              <p id="cookie-consent-description" className="text-sm font-semibold leading-6">
                 We use cookies to improve your experience. See our{' '}
                 <Link href="/privacy" className="underline decoration-[#7F77DD] underline-offset-4">
                   Privacy Policy
@@ -148,7 +181,10 @@ export function CookieConsentBanner() {
               Reject Non-Essential
             </button>
             <button
+              ref={manageButtonRef}
               type="button"
+              aria-haspopup="dialog"
+              aria-expanded={isModalOpen}
               onClick={() => setIsModalOpen(true)}
               className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
             >
@@ -161,10 +197,12 @@ export function CookieConsentBanner() {
       {isModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0F0D2E]/70 px-4 py-6">
           <div
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="cookie-preferences-title"
-            className="w-full max-w-xl rounded-[28px] border border-[#D5D2F6] bg-white p-6 shadow-2xl"
+            className="w-full max-w-xl rounded-[28px] border border-[#D5D2F6] bg-white p-6 shadow-2xl focus:outline-none"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -177,7 +215,10 @@ export function CookieConsentBanner() {
                 type="button"
                 aria-label="Close cookie preferences"
                 className="rounded-full p-2 text-[#5A5578] transition hover:bg-[#F4F2FF]"
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  manageButtonRef.current?.focus();
+                }}
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -216,6 +257,7 @@ export function CookieConsentBanner() {
                     <button
                       type="button"
                       role="switch"
+                      aria-label={option.title}
                       aria-checked={checked}
                       disabled={isDisabled}
                       onClick={() => {
