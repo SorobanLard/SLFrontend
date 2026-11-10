@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import RatingSummary from "./RatingSummary";
+import { AlertCircle, MessageSquarePlus, RefreshCw } from "lucide-react";
+import { RatingSummary } from "./RatingSummary";
 
 interface Review {
   id: string;
@@ -23,9 +24,17 @@ type VoteState = "up" | "down" | null;
 
 interface ReviewsListProps {
   reviews: Review[];
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
-export default function ReviewsList({ reviews }: ReviewsListProps) {
+export default function ReviewsList({
+  reviews,
+  isLoading = false,
+  error = null,
+  onRetry,
+}: ReviewsListProps) {
   const [sortBy, setSortBy] = useState("mostRecent");
   const [reviewList, setReviewList] = useState(reviews);
   const [visibleCount, setVisibleCount] = useState(5);
@@ -88,6 +97,48 @@ export default function ReviewsList({ reviews }: ReviewsListProps) {
     );
   };
 
+  if (isLoading) {
+    return (
+      <div
+        role="status"
+        aria-label="Loading course reviews"
+        data-testid="reviews-loading"
+        className="space-y-4"
+      >
+        <div className="h-28 w-full rounded-xl bg-ink-50 animate-pulse" />
+        {Array.from({ length: 3 }).map((_, idx) => (
+          <div key={idx} className="h-32 w-full rounded-xl bg-ink-50 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        data-testid="reviews-error"
+        className="rounded-xl border border-red-200 bg-red-50 p-6 text-center space-y-3"
+      >
+        <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+        <div>
+          <p className="text-sm font-semibold text-red-900">Unable to load course reviews</p>
+          <p className="text-xs text-red-700 mt-1">{error}</p>
+        </div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3.5 py-2 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <RatingSummary
@@ -96,22 +147,31 @@ export default function ReviewsList({ reviews }: ReviewsListProps) {
         distribution={distribution}
       />
 
-      <div className="flex justify-end">
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
-        >
-          <option value="mostRecent">Most Recent</option>
-          <option value="mostHelpful">Most Helpful</option>
-          <option value="highestRated">Highest Rated</option>
-          <option value="lowestRated">Lowest Rated</option>
-        </select>
-      </div>
+      {sortedReviews.length > 0 && (
+        <div className="flex justify-end">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="rounded-lg border border-ink-200 px-3 py-2 text-sm"
+          >
+            <option value="mostRecent">Most Recent</option>
+            <option value="mostHelpful">Most Helpful</option>
+            <option value="highestRated">Highest Rated</option>
+            <option value="lowestRated">Lowest Rated</option>
+          </select>
+        </div>
+      )}
 
       {sortedReviews.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-ink-200 p-8 text-center">
-          <p className="text-ink-500">No reviews yet.</p>
+        <div
+          data-testid="reviews-empty"
+          className="rounded-xl border border-dashed border-ink-200 p-10 text-center space-y-2"
+        >
+          <MessageSquarePlus className="h-8 w-8 text-ink-300 mx-auto" />
+          <p className="text-sm font-semibold text-ink-800">No reviews yet</p>
+          <p className="text-xs text-ink-500">
+            Be the first learner to share feedback and rate this course after enrolling.
+          </p>
         </div>
       ) : (
         <div className="space-y-6">
