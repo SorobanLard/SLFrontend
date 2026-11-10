@@ -1,62 +1,41 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import {
   Plus,
   Users,
   DollarSign,
   BookOpen,
-  Clock,
   Ticket,
   TrendingUp,
 } from 'lucide-react';
-import { usersApi, coursesApi } from '@/lib/api/services';
+import { usersApi } from '@/lib/api/services';
 import { CourseCard } from '@/components/courses/CourseCard';
 import {
-  RevenueDateRangePicker,
   formatRangeLabel,
   rangeForPreset,
   type RevenueDateRange,
 } from '@/components/instructor/RevenueDateRangePicker';
 import { courseStatusBadge, formatUsdc } from '@/lib/utils';
 import type { Course } from '@/types';
-import type { RevenueDateRange } from '@/components/instructor/RevenueDateRangePicker';
-// Plain utility functions don't need dynamic import — only the React component does
-import { formatRangeLabel, rangeForPreset } from '@/components/instructor/RevenueDateRangePicker';
 
-// Code-split the heavy chart and date-picker out of the student bundle.
-// These components pull in recharts + date-fns which are instructor-only concerns.
 const RevenueChart = dynamic(
   () => import('@/components/instructor/RevenueChart').then((m) => m.RevenueChart),
-  { loading: () => <div className="h-[350px] animate-pulse rounded-xl bg-ink-100" /> },
+  {
+    ssr: false,
+    loading: () => <div className="h-[350px] w-full animate-pulse rounded-xl bg-ink-50" />,
+  },
 );
 
 const RevenueDateRangePicker = dynamic(
   () => import('@/components/instructor/RevenueDateRangePicker').then((m) => m.RevenueDateRangePicker),
   { loading: () => <div className="h-8 w-40 animate-pulse rounded-lg bg-ink-100" /> },
 );
-import { courseStatusBadge, formatUsdc } from '@/lib/utils';
-import type { Course } from '@/types';
-
-// Dynamically import the chart so the charting library is code-split out of the
-// main bundle and only loaded when the instructor dashboard renders the chart.
-const RevenueChart = dynamic(
-  () =>
-    import('@/components/instructor/RevenueChart').then((m) => m.RevenueChart),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[350px] w-full animate-pulse rounded-xl bg-ink-50" />
-    ),
-  }
-);
 
 export default function InstructorDashboardPage() {
   const [stats, setStats] = useState<any>(null);
-  const [pending, setPending] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [revenueLoading, setRevenueLoading] = useState(true);
@@ -73,14 +52,12 @@ export default function InstructorDashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Simulate fetching revenue data based on date range
   useEffect(() => {
     setRevenueLoading(true);
     const timer = setTimeout(() => {
       const data = generateRevenueData(dateRange.from, dateRange.to);
       setRevenueData(data);
 
-      // Calculate this month's revenue
       const today = new Date();
       const currentMonth = data.find((d) => {
         const date = new Date(d.date);
@@ -91,7 +68,6 @@ export default function InstructorDashboardPage() {
       });
       setThisMonthRevenue(currentMonth?.revenue || 0);
 
-      // Simulate pending payout (15% of total revenue)
       const totalRevenue = data.reduce((sum, d) => sum + d.revenue, 0);
       setPendingPayout(Math.round(totalRevenue * 0.15));
 
@@ -102,10 +78,10 @@ export default function InstructorDashboardPage() {
   }, [dateRange.from, dateRange.to]);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="section-heading">Instructor Dashboard</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/dashboard/instructor/promo-codes"
             className="btn-secondary flex items-center gap-2"
@@ -121,7 +97,10 @@ export default function InstructorDashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div
+        data-testid="instructor-stats-grid"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8"
+      >
         {[
           { icon: BookOpen, label: 'Courses', value: stats?.totalCourses ?? 0 },
           { icon: Users, label: 'Students', value: stats?.totalStudents ?? 0 },
@@ -136,20 +115,20 @@ export default function InstructorDashboardPage() {
             value: formatUsdc(thisMonthRevenue),
           },
         ].map(({ icon: Icon, label, value }) => (
-          <div key={label} className="card p-5">
-            <div className="flex items-center gap-3 mb-1">
+          <div key={label} className="card p-4 sm:p-5 min-w-0">
+            <div className="flex items-center gap-3 mb-1 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-saffron-50 flex items-center justify-center flex-shrink-0">
                 <Icon className="w-4 h-4 text-saffron-600" />
               </div>
-              <p className="text-xs text-ink-400">{label}</p>
+              <p className="text-xs text-ink-400 truncate">{label}</p>
             </div>
-            <p className="text-2xl font-bold text-ink-900">{value}</p>
+            <p className="text-xl sm:text-2xl font-bold text-ink-900 truncate">{value}</p>
           </div>
         ))}
       </div>
 
       {/* Revenue Analytics Section */}
-      <div className="mb-8">
+      <div className="mb-8 min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="font-display text-lg font-semibold text-ink-900 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-sorobanlard-primary" />
@@ -159,7 +138,7 @@ export default function InstructorDashboardPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
           {[
             {
               label: 'Total Revenue',
@@ -177,16 +156,16 @@ export default function InstructorDashboardPage() {
               icon: '⏳',
             },
           ].map(({ label, value, icon }) => (
-            <div key={label} className="card p-4 text-center">
+            <div key={label} className="card p-4 text-center min-w-0">
               <div className="text-2xl mb-2">{icon}</div>
-              <p className="text-xs text-ink-500 mb-1">{label}</p>
-              <p className="text-xl font-bold text-ink-900">{value}</p>
+              <p className="text-xs text-ink-500 mb-1 truncate">{label}</p>
+              <p className="text-xl font-bold text-ink-900 truncate">{value}</p>
             </div>
           ))}
         </div>
 
         {/* Chart */}
-        <div className="card p-6">
+        <div className="card p-4 sm:p-6 min-w-0 overflow-hidden">
           <RevenueChart
             data={revenueData}
             isLoading={revenueLoading}
@@ -198,7 +177,7 @@ export default function InstructorDashboardPage() {
       </div>
 
       {/* My courses */}
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg font-semibold text-ink-900">
           My courses
         </h2>
@@ -208,7 +187,7 @@ export default function InstructorDashboardPage() {
         </Link>
       </div>
       {!stats?.courses?.length ? (
-        <div className="card p-10 text-center">
+        <div className="card p-6 sm:p-10 text-center">
           <BookOpen className="w-10 h-10 text-saffron-200 mx-auto mb-3" />
           <p className="text-sm font-medium text-ink-700">No courses yet</p>
           <p className="text-xs text-ink-400 mt-1">
@@ -240,10 +219,6 @@ export default function InstructorDashboardPage() {
   );
 }
 
-/**
- * Generate mock revenue data for the chart
- * In production, this would come from the backend API
- */
 function generateRevenueData(from: string, to: string) {
   const data = [];
   const start = new Date(`${from}T00:00:00`);
@@ -256,7 +231,7 @@ function generateRevenueData(from: string, to: string) {
       month: 'short',
       ...(spansYears ? { year: '2-digit' } : {}),
     });
-    const revenue = Math.floor(Math.random() * 4000) + 500; // Random revenue between $500-$4500
+    const revenue = Math.floor(Math.random() * 4000) + 500;
 
     data.push({
       month: monthName,
