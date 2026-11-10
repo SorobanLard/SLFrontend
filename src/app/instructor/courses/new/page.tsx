@@ -799,6 +799,108 @@ const INITIAL_DATA: CourseFormData = {
 
 type ValidationErrors = Record<string, string>;
 
+export type RegistrationErrorKind =
+  | 'user_rejected'
+  | 'wallet_unavailable'
+  | 'onchain_failure'
+  | 'network_error'
+  | 'unknown_error';
+
+export interface ClassifiedRegistrationError {
+  kind: RegistrationErrorKind;
+  title: string;
+  message: string;
+  recoveryHint: string;
+  retryLabel: string;
+}
+
+export function classifyRegistrationTxError(err: unknown): ClassifiedRegistrationError {
+  const rawMessage =
+    err instanceof Error ? err.message : typeof err === 'string' ? err : 'Something went wrong. Please try again.';
+  const lower = rawMessage.toLowerCase();
+
+  if (
+    lower.includes('decline') ||
+    lower.includes('reject') ||
+    lower.includes('cancel') ||
+    lower.includes('denied') ||
+    lower.includes('user refused')
+  ) {
+    return {
+      kind: 'user_rejected',
+      title: 'Signature Declined in Freighter',
+      message: rawMessage,
+      recoveryHint:
+        'Your course draft is saved. Re-open Freighter and approve the signature prompt when you are ready.',
+      retryLabel: 'Retry Signature',
+    };
+  }
+
+  if (
+    lower.includes('not installed') ||
+    lower.includes('freighter') ||
+    lower.includes('wallet not connected') ||
+    lower.includes('no wallet') ||
+    lower.includes('locked')
+  ) {
+    return {
+      kind: 'wallet_unavailable',
+      title: 'Freighter Wallet Unavailable',
+      message: rawMessage,
+      recoveryHint:
+        'Ensure your Stellar wallet is connected and unlocked before submitting your course for on-chain registration.',
+      retryLabel: 'Retry Registration',
+    };
+  }
+
+  if (
+    lower.includes('network') ||
+    lower.includes('timeout') ||
+    lower.includes('fetch') ||
+    lower.includes('rpc') ||
+    lower.includes('horizon') ||
+    lower.includes('503') ||
+    lower.includes('502')
+  ) {
+    return {
+      kind: 'network_error',
+      title: 'Stellar Network Connection Error',
+      message: rawMessage,
+      recoveryHint:
+        'Could not reach the Soroban RPC / Horizon endpoint. Your course draft is saved locally — retry in a moment.',
+      retryLabel: 'Retry Submission',
+    };
+  }
+
+  if (
+    lower.includes('tx_') ||
+    lower.includes('op_') ||
+    lower.includes('simulation') ||
+    lower.includes('contract') ||
+    lower.includes('insufficient') ||
+    lower.includes('on-chain') ||
+    lower.includes('stellar')
+  ) {
+    return {
+      kind: 'onchain_failure',
+      title: 'On-Chain Course Registration Failed',
+      message: rawMessage,
+      recoveryHint:
+        'The Soroban smart contract rejected or failed to simulate the transaction. Verify your XLM balance and wallet account.',
+      retryLabel: 'Retry On-Chain Registration',
+    };
+  }
+
+  return {
+    kind: 'unknown_error',
+    title: 'Course Registration Failed',
+    message: rawMessage,
+    recoveryHint:
+      'Your course draft has been preserved. You can retry submitting or save your draft to continue later.',
+    retryLabel: 'Try Again',
+  };
+}
+
 function validateStep(step: number, data: CourseFormData): ValidationErrors {
   const errors: ValidationErrors = {};
   if (step === 1) {
@@ -822,6 +924,7 @@ export default function NewCoursePage() {
   const [loading, setLoading] = useState(false);
   const [txStep,  setTxStep]  = useState('');
   const [error,   setError]   = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<ClassifiedRegistrationError | null>(null);
   const [draftSaving, setDraftSaving] = useState(false);
 
   const courseId = generateCourseId(data.category || 'COURSE');
@@ -866,8 +969,16 @@ export default function NewCoursePage() {
 
   // ── Submit / Publish ──────────────────────────────────────────
   const handlePublish = async () => {
-    if (!address) return;
+    if (!address) {
+      const classified = classifyRegistrationTxError(
+        new Error('Wallet not connected. Please connect your Freighter wallet to register this course.')
+      );
+      setError(classified.message);
+      setErrorDetails(classified);
+      return;
+    }
     setError(null);
+    setErrorDetails(null);
     setLoading(true);
 
     try {
@@ -909,7 +1020,10 @@ export default function NewCoursePage() {
       localStorage.removeItem('sorobanlard_course_draft');
       router.push('/dashboard/instructor');
     } catch (err: any) {
-      setError(err?.message ?? 'Something went wrong. Please try again.');
+      localStorage.setItem('sorobanlard_course_draft', JSON.stringify({ step, data }));
+      const classified = classifyRegistrationTxError(err);
+      setError(classified.message);
+      setErrorDetails(classified);
     } finally {
       setLoading(false);
       setTxStep('');
@@ -937,10 +1051,43 @@ export default function NewCoursePage() {
 
       {/* Error banner */}
       {error && (
-        <div className="mb-5 p-4 rounded-xl bg-red-50 border border-red-100 flex gap-3">
-          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-          <button type="button" onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
+        <div
+          role="alert"
+          data-testid="tx-failure-banner"
+          data-error-kind={errorDetails?.kind ?? 'unknown_error'}
+          className="mb-5 p-4 rounded-xl bg-red-50 border border-red-100 flex gap-3"
+        >
+          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <p className="text-sm font-semibold text-red-900">
+              {errorDetails?.title ?? 'Course Registration Failed'}
+            </p>
+            <p className="text-sm text-red-700">{error}</p>
+            {errorDetails?.recoveryHint && (
+              <p className="text-xs text-red-600">{errorDetails.recoveryHint}</p>
+            )}
+            {step === 5 && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
+                >
+                  {errorDetails?.retryLabel ?? 'Try Again'}
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setErrorDetails(null);
+            }}
+            aria-label="Dismiss error"
+            className="ml-auto text-red-400 hover:text-red-600 self-start"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
