@@ -1,83 +1,175 @@
 import { create } from 'zustand';
 import type { User } from '@/types';
-import { usersApi } from '@/lib/api/services';
 
-const AUTH_TOKEN_KEY = 'sorobanlard_token';
-const AUTH_ADDRESS_KEY = 'sorobanlard_address';
+const TOKEN_COOKIE_NAME = 'sorobanlard_token';
+const TOKEN_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 
-const readCookie = (name: string) => {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie
-    .split('; ')
-    .find((entry) => entry.startsWith(`${name}=`));
+export type WalletConnectionStatus = 'idle' | 'connected' | 'disconnected' | 'error';
 
-  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
-};
-
-const clearPersistedAuth = () => {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(AUTH_TOKEN_KEY);
-  localStorage.removeItem(AUTH_ADDRESS_KEY);
-  document.cookie = `${AUTH_TOKEN_KEY}=; path=/; max-age=0`;
-};
-
-interface AuthState {
-  address:     string | null;
-  token:       string | null;
-  user:        User | null;
-  isConnected: boolean;
-  setAuth:     (address: string, token: string, user: User, rememberMe?: boolean) => void;
-  setAddress:  (address: string) => void;
-  updateUser:  (patch: Partial<User>) => void;
-  deleteAccount: (password: string) => Promise<void>;
-  logout:      () => void;
-  rehydrate:   () => void;
+export interface DisconnectWalletOptions {
+  /** When true, also terminates the authenticated session and clears JWT cookies. */
+  endSession?: boolean;
+  /** Optional custom user-facing reason (e.g., Freighter locked or account switched). */
+  reason?: string;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  address: null, token: null, user: null, isConnected: false,
+function setAuthCookie(token: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${TOKEN_COOKIE_NAME}=${encodeURIComponent(token)}; path=/; max-age=${TOKEN_MAX_AGE_SECONDS}; samesite=lax`;
+}
 
-  setAuth: (address, token, user, rememberMe = false) => {
+function clearAuthCookie() {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${TOKEN_COOKIE_NAME}=; path=/; max-age=0; samesite=lax`;
+}
+
+function getAuthCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^| )' + TOKEN_COOKIE_NAME + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+interface AuthState {
+  address: string | null;
+  token: string | null;
+  user: User | null;
+  isConnected: boolean;
+  walletStatus: WalletConnectionStatus;
+  walletDisconnectMessage: string | null;
+  setAuth: (address: string, token: string, user?: User) => void;
+  setUser: (user: User) => void;
+  disconnectWallet: (options?: DisconnectWalletOptions) => void;
+  clearWalletDisconnectMessage: () => void;
+  logout: () => void;
+  rehydrate: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  address: null,
+  token: null,
+  user: null,
+  isConnected: false,
+  walletStatus: 'idle',
+  walletDisconnectMessage: null,
+
+  setAuth: (address, token, user) => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(AUTH_TOKEN_KEY, token);
-      localStorage.setItem(AUTH_ADDRESS_KEY, address);
-      const maxAge = rememberMe ? 30 * 24 * 3600 : 24 * 3600;
-      document.cookie = `${AUTH_TOKEN_KEY}=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+      localStorage.setItem('sorobanlard_token', token);
+      if (address) {
+        localStorage.setItem('sorobanlard_address', address);
+      } else {
+        localStorage.removeItem('sorobanlard_address');
+      }
+      if (user) localStorage.setItem('sorobanlard_user', JSON.stringify(user));
     }
-    set({ address, token, user, isConnected: true });
+    setAuthCookie(token);
+    set({
+      address: address || null,
+      token,
+      user: user ?? null,
+      isConnected: true,
+      walletStatus: address ? 'connected' : 'idle',
+      walletDisconnectMessage: null,
+    });
   },
 
-  setAddress: (address) => set({ address, isConnected: true }),
+  setUser: (user) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sorobanlard_user', JSON.stringify(user));
+    }
+    set({ user });
+  },
 
-  updateUser: (patch) =>
-    set((state) => ({ user: state.user ? { ...state.user, ...patch } : state.user })),
+  disconnectWallet: (options) => {
+    const current = get();
+    const shouldEndSession = options?.endSession ?? !current.user?.email;
 
-  deleteAccount: async (password) => {
-    await usersApi.deleteAccount(password);
-    clearPersistedAuth();
-    set({ address: null, token: null, user: null, isConnected: false });
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('sorobanlard_address');
+      if (shouldEndSession) {
+        localStorage.removeItem('sorobanlard_token');
+        localStorage.removeItem('sorobanlard_user');
+      }
+    }
+
+    const message =
+      options?.reason ??
+      (shouldEndSession
+        ? 'Wallet disconnected. Your active wallet session has ended.'
+        : 'Wallet disconnected from your active session. Reconnect Freighter to sign transactions.');
+
+    if (shouldEndSession) {
+      clearAuthCookie();
+      set({
+        address: null,
+        token: null,
+        user: null,
+        isConnected: false,
+        walletStatus: 'disconnected',
+        walletDisconnectMessage: message,
+      });
+      return;
+    }
+
+    const updatedUser = current.user
+      ? { ...current.user, walletAddress: undefined }
+      : null;
+
+    if (typeof window !== 'undefined' && updatedUser) {
+      localStorage.setItem('sorobanlard_user', JSON.stringify(updatedUser));
+    }
+
+    set({
+      address: null,
+      user: updatedUser,
+      isConnected: Boolean(current.token),
+      walletStatus: 'disconnected',
+      walletDisconnectMessage: message,
+    });
+  },
+
+  clearWalletDisconnectMessage: () => {
+    set({ walletDisconnectMessage: null });
   },
 
   logout: () => {
-    clearPersistedAuth();
-    set({ address: null, token: null, user: null, isConnected: false });
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('sorobanlard_token');
+      localStorage.removeItem('sorobanlard_address');
+      localStorage.removeItem('sorobanlard_user');
+    }
+    clearAuthCookie();
+    set({
+      address: null,
+      token: null,
+      user: null,
+      isConnected: false,
+      walletStatus: 'disconnected',
+      walletDisconnectMessage: null,
+    });
   },
 
   rehydrate: () => {
     if (typeof window === 'undefined') return;
+    const token = localStorage.getItem('sorobanlard_token');
+    const cookieToken = getAuthCookie();
+    const address = localStorage.getItem('sorobanlard_address');
+    const userStr = localStorage.getItem('sorobanlard_user');
+    const user = userStr ? (JSON.parse(userStr) as User) : null;
 
-    const cookieToken = readCookie(AUTH_TOKEN_KEY);
-    const storageToken = localStorage.getItem(AUTH_TOKEN_KEY);
-    const address = localStorage.getItem(AUTH_ADDRESS_KEY);
-
-    if (!cookieToken || !storageToken || !address || cookieToken !== storageToken) {
-      if (storageToken || address) {
-        clearPersistedAuth();
-      }
-      set({ address: null, token: null, user: null, isConnected: false });
-      return;
+    // Validate local state against cookie presence to avoid stale UI state
+    if (token && cookieToken && token === cookieToken) {
+      set({
+        address,
+        token,
+        user,
+        isConnected: true,
+        walletStatus: address ? 'connected' : 'idle',
+        walletDisconnectMessage: null,
+      });
+    } else if (token || address || userStr || cookieToken) {
+      // Clear out any inconsistent or stale session data
+      get().logout();
     }
-
-    set({ token: storageToken, address, isConnected: true });
   },
 }));
