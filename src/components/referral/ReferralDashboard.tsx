@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AlertCircle, Gift, RefreshCw } from "lucide-react";
 
 interface Referral {
   id: string;
@@ -20,6 +21,9 @@ interface Props {
   referralCode: string;
   stats: ReferralStats;
   referrals: Referral[];
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 const statusStyles = {
@@ -32,10 +36,60 @@ export default function ReferralDashboard({
   referralCode,
   stats,
   referrals,
+  isLoading = false,
+  error = null,
+  onRetry,
 }: Props) {
   const [copied, setCopied] = useState(false);
 
   const referralLink = `https://sorobanlard.com/ref/${referralCode}`;
+
+  if (isLoading) {
+    return (
+      <div
+        role="status"
+        aria-label="Loading referral dashboard"
+        data-testid="referral-dashboard-loading"
+        className="space-y-6"
+      >
+        <div className="h-8 w-48 rounded-lg bg-ink-100 animate-pulse" />
+        <div className="h-36 w-full rounded-xl bg-ink-50 animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div key={idx} className="h-24 rounded-xl bg-ink-50 animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        data-testid="referral-dashboard-error"
+        className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-3"
+      >
+        <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+        <div>
+          <p className="text-sm font-semibold text-red-900">
+            Unable to load referral dashboard
+          </p>
+          <p className="text-xs text-red-700 mt-1">{error}</p>
+        </div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3.5 py-2 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const copyLink = async () => {
     try {
@@ -158,9 +212,16 @@ export default function ReferralDashboard({
 
         <div className="card overflow-hidden">
           {referrals.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-sm text-ink-500">
+            <div
+              data-testid="referral-dashboard-empty"
+              className="p-8 text-center space-y-2"
+            >
+              <Gift className="h-8 w-8 text-ink-300 mx-auto" />
+              <p className="text-sm font-medium text-ink-700">
                 You haven&apos;t earned any referral rewards yet.
+              </p>
+              <p className="text-xs text-ink-400">
+                Share your referral link above with friends to start earning XLM rewards.
               </p>
             </div>
           ) : (
