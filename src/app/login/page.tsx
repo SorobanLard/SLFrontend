@@ -6,10 +6,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AxiosError } from 'axios';
-import { Eye, EyeOff, Facebook, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, ExternalLink, Facebook, Loader2, RefreshCw, Wallet } from 'lucide-react';
 import { authApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
+import { connectFreighter, isFreighterInstalled, signNonce } from '@/lib/stellar/freighter';
 import { loginSchema, type LoginFormValues } from '@/lib/validations/login';
+
+const FREIGHTER_INSTALL_URL = 'https://www.freighter.app/';
 
 function GoogleIcon() {
   return (
@@ -38,8 +41,60 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const setAddress = useAuthStore((state) => state.setAddress);
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [freighterMissing, setFreighterMissing] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      'freighter' in window &&
+      !Boolean((window as unknown as { freighter?: unknown }).freighter),
+  );
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+
+  const handleFreighterConnect = async () => {
+    setFormError(null);
+    setIsConnectingWallet(true);
+
+    try {
+      const installed = await isFreighterInstalled();
+      if (!installed) {
+        setFreighterMissing(true);
+        return;
+      }
+
+      setFreighterMissing(false);
+      const address = await connectFreighter();
+
+      if (typeof authApi.getNonce === 'function' && typeof authApi.login === 'function') {
+        const networkPassphrase =
+          process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet'
+            ? 'Public Global Stellar Network ; September 2015'
+            : 'Test SDF Network ; September 2015';
+        const nonce = await authApi.getNonce(address);
+        const signedNonce = await signNonce(nonce, networkPassphrase);
+        const { accessToken, user } = await authApi.login({
+          stellarAddress: address,
+          signedNonce,
+          signature: signedNonce,
+        });
+        setAuth(address, accessToken, user);
+      } else {
+        setAddress(address);
+      }
+
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl ?? '/dashboard');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Could not connect to Freighter. Please try again.';
+      setFormError(message);
+    } finally {
+      setIsConnectingWallet(false);
+    }
+  };
 
   const {
     register,
@@ -136,7 +191,7 @@ function LoginForm() {
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B66A6] hover:text-[#26215C]"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? 'Hide characters' : 'Show characters'}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -187,6 +242,59 @@ function LoginForm() {
               or continue with
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={handleFreighterConnect}
+            disabled={isSubmitting || isConnectingWallet}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#7F77DD] bg-[#EEEDFE]/60 px-4 py-2.5 text-sm font-semibold text-[#26215C] transition hover:bg-[#EEEDFE] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isConnectingWallet ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Checking Freighter...
+              </>
+            ) : (
+              <>
+                <Wallet className="h-4 w-4 text-[#3C3489]" aria-hidden="true" />
+                Connect with Freighter
+              </>
+            )}
+          </button>
+
+          {freighterMissing && (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="freighter-not-installed"
+              className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-900"
+            >
+              <p className="font-semibold">Freighter extension not installed</p>
+              <p className="mt-1 text-amber-800">
+                Install or enable the Freighter browser extension to connect your Stellar wallet, then click Retry.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <a
+                  href={FREIGHTER_INSTALL_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[#26215C] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#3C3489]"
+                >
+                  Install Freighter
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </a>
+                <button
+                  type="button"
+                  onClick={handleFreighterConnect}
+                  disabled={isConnectingWallet}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <button

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LoginPage from './page';
 import { authApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
+import { connectFreighter, isFreighterInstalled, signNonce } from '@/lib/stellar/freighter';
 
 const mockPush = vi.fn();
 const mockGetSearchParam = vi.fn();
@@ -28,14 +29,26 @@ vi.mock('@/lib/api/services', () => ({
   },
 }));
 
+vi.mock('@/lib/stellar/freighter', () => ({
+  isFreighterInstalled: vi.fn(),
+  connectFreighter: vi.fn(),
+  signNonce: vi.fn(),
+}));
+
 describe('LoginPage integration', () => {
   const loginWithEmailMock = vi.mocked(authApi.loginWithEmail);
+  const isFreighterInstalledMock = vi.mocked(isFreighterInstalled);
+  const connectFreighterMock = vi.mocked(connectFreighter);
+  const signNonceMock = vi.mocked(signNonce);
 
   beforeEach(() => {
     mockPush.mockReset();
     mockGetSearchParam.mockReset();
     mockGetSearchParam.mockReturnValue(null);
     loginWithEmailMock.mockReset();
+    isFreighterInstalledMock.mockReset();
+    connectFreighterMock.mockReset();
+    signNonceMock.mockReset();
     useAuthStore.getState().logout();
     localStorage.clear();
   });
@@ -121,5 +134,34 @@ describe('LoginPage integration', () => {
     await user.click(screen.getByRole('button', { name: /login/i }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Invalid credentials');
+  });
+
+  it('shows a friendly fallback with install link and retry button when Freighter is not installed, and recovers on retry', async () => {
+    const user = userEvent.setup();
+    isFreighterInstalledMock.mockResolvedValueOnce(false);
+    render(<LoginPage />);
+
+    await user.click(screen.getByRole('button', { name: /connect with freighter/i }));
+
+    const fallback = await screen.findByTestId('freighter-not-installed');
+    expect(fallback).toHaveTextContent(/freighter extension not installed/i);
+
+    const installLink = screen.getByRole('link', { name: /install freighter/i });
+    expect(installLink).toHaveAttribute('href', 'https://www.freighter.app/');
+    expect(installLink).toHaveAttribute('target', '_blank');
+    expect(connectFreighterMock).not.toHaveBeenCalled();
+
+    isFreighterInstalledMock.mockResolvedValueOnce(true);
+    connectFreighterMock.mockResolvedValueOnce('GABCDEFGHIJKLMNOPQRSTUVWXYZ2345672345672345672345672345');
+
+    await user.click(screen.getByRole('button', { name: /^retry$/i }));
+
+    await waitFor(() => {
+      expect(connectFreighterMock).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/dashboard');
+    });
+    expect(screen.queryByTestId('freighter-not-installed')).not.toBeInTheDocument();
   });
 });
