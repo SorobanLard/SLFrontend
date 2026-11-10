@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Category } from '@/types';
@@ -56,6 +57,26 @@ export function FilterSidebar({
   ].filter(Boolean).length;
 
   const hasFilters = activeCount > 0;
+
+  useEffect(() => {
+    if (!open) return;
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        onClose();
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open, onClose]);
 
   const content = (
     <div className="flex flex-col h-full">
@@ -228,22 +249,35 @@ export function FilterSidebar({
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block w-56 flex-shrink-0">
-        <div className="card p-4 sticky top-6">
+      <aside
+        data-testid="filter-sidebar-desktop"
+        className="hidden lg:block w-56 xl:w-64 flex-shrink-0"
+      >
+        <div className="card p-4 sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto">
           {content}
         </div>
       </aside>
 
-      {/* Mobile drawer overlay */}
+      {/* Mobile & tablet drawer overlay (<1024px) */}
       {open && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div
+          data-testid="filter-drawer-overlay"
+          className="lg:hidden fixed inset-0 z-50 flex"
+        >
           {/* Backdrop */}
           <div
+            data-testid="filter-drawer-backdrop"
             className="absolute inset-0 bg-black/40"
             onClick={onClose}
           />
           {/* Drawer */}
-          <div className="relative w-72 bg-white h-full shadow-xl overflow-y-auto p-5 animate-slide-up">
+          <div
+            data-testid="filter-drawer-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Course filters"
+            className="relative w-72 max-w-[calc(100vw-3rem)] bg-white h-full shadow-xl overflow-y-auto p-4 sm:p-5 animate-slide-up"
+          >
             {content}
           </div>
         </div>
