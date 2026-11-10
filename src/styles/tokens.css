@@ -48,6 +48,29 @@
   --color-confetti-dark: #0f172a;
 
   /* --------------------------------------------------------------------------
+   * Component-level status badge & level pill tokens (WCAG 2.1 AA >= 4.5:1)
+   * Covers courseStatusBadge (ACTIVE, PENDING, DRAFT, PAUSED, ARCHIVED)
+   * and levelChip (Beginner, Intermediate, Advanced)
+   * -------------------------------------------------------------------------- */
+  --color-badge-active-bg: #f0fdf4;
+  --color-badge-active-fg: #15803d;
+  --color-badge-pending-bg: #fffbeb;
+  --color-badge-pending-fg: #b45309;
+  --color-badge-draft-bg: #f0ede6;
+  --color-badge-draft-fg: #3d3228;
+  --color-badge-paused-bg: #fff7ed;
+  --color-badge-paused-fg: #c2410c;
+  --color-badge-archived-bg: #f0ede6;
+  --color-badge-archived-fg: #6f614f;
+
+  --color-chip-beginner-bg: #eff6ff;
+  --color-chip-beginner-fg: #1d4ed8;
+  --color-chip-intermediate-bg: #faf5ff;
+  --color-chip-intermediate-fg: #7e22ce;
+  --color-chip-advanced-bg: #fef2f2;
+  --color-chip-advanced-fg: #b91c1c;
+
+  /* --------------------------------------------------------------------------
    * WCAG 2.1 AA contrast pairs (normal text >= 4.5:1)
    * Verified:
    * - #26215C on #FFFFFF -> 14.44:1
@@ -216,6 +239,25 @@
   --color-confetti-gold: #fbbf24;
   --color-confetti-green: #34d399;
   --color-confetti-dark: #e0e7ff;
+
+  /* Component-level status badge & level pill dark-mode overrides (WCAG AA >= 4.5:1) */
+  --color-badge-active-bg: #052e16;
+  --color-badge-active-fg: #86efac;
+  --color-badge-pending-bg: #451a03;
+  --color-badge-pending-fg: #fde68a;
+  --color-badge-draft-bg: #2a2541;
+  --color-badge-draft-fg: #f0efff;
+  --color-badge-paused-bg: #431407;
+  --color-badge-paused-fg: #fdba74;
+  --color-badge-archived-bg: #1e1a2f;
+  --color-badge-archived-fg: #d9d5ff;
+
+  --color-chip-beginner-bg: #172554;
+  --color-chip-beginner-fg: #93c5fd;
+  --color-chip-intermediate-bg: #3b0764;
+  --color-chip-intermediate-fg: #e9d5ff;
+  --color-chip-advanced-bg: #450a0a;
+  --color-chip-advanced-fg: #fca5a5;
 
   /* Shadows for dark mode */
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.24);

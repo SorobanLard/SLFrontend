@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { courseStatusBadge, levelChip } from '@/lib/utils';
+import type { CourseStatus } from '@/types';
 
 function resolveHexValue(css: string, value: string): string {
   if (value.startsWith('#')) {
@@ -133,6 +135,8 @@ describe('design token contrast ratios', () => {
     expect(contrastRatio(darkTextLink, darkBgSurface)).toBeGreaterThanOrEqual(4.5);
     // Range label / empty-state text: text-muted on bg-surface (dark)
     expect(contrastRatio(darkTextMuted, darkBgSurface)).toBeGreaterThanOrEqual(4.5);
+  });
+
   // -----------------------------------------------------------------------
   // Dark mode contrast ratios
   // Ensures the [data-theme='dark'] token overrides meet WCAG AA thresholds.
@@ -215,6 +219,127 @@ describe('design token contrast ratios', () => {
 
       // At minimum 3:1 so it reads as a visible particle
       expect(contrastRatio(darkConfettiDark, bgPage)).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Component-level status badges & level chips (issue #219)
+  // Audits all courseStatusBadge and levelChip foreground/background pairs
+  // against WCAG 2.1 AA normal text contrast (>= 4.5:1) in light and dark modes.
+  // -----------------------------------------------------------------------
+  describe('courseStatusBadge and levelChip component contrast ratios (WCAG AA)', () => {
+    const STATUS_TOKEN_PAIRS: Array<{
+      status: CourseStatus;
+      expectedClass: string;
+      fgToken: string;
+      bgToken: string;
+    }> = [
+      {
+        status: 'ACTIVE',
+        expectedClass: 'badge-active',
+        fgToken: 'color-badge-active-fg',
+        bgToken: 'color-badge-active-bg',
+      },
+      {
+        status: 'PENDING',
+        expectedClass: 'badge-pending',
+        fgToken: 'color-badge-pending-fg',
+        bgToken: 'color-badge-pending-bg',
+      },
+      {
+        status: 'DRAFT',
+        expectedClass: 'badge-draft',
+        fgToken: 'color-badge-draft-fg',
+        bgToken: 'color-badge-draft-bg',
+      },
+      {
+        status: 'PAUSED',
+        expectedClass: 'badge-paused',
+        fgToken: 'color-badge-paused-fg',
+        bgToken: 'color-badge-paused-bg',
+      },
+      {
+        status: 'ARCHIVED',
+        expectedClass: 'badge-archived',
+        fgToken: 'color-badge-archived-fg',
+        bgToken: 'color-badge-archived-bg',
+      },
+    ];
+
+    const LEVEL_CHIP_PAIRS: Array<{
+      level: string;
+      expectedClass: string;
+      fgToken: string;
+      bgToken: string;
+    }> = [
+      {
+        level: 'Beginner',
+        expectedClass: 'chip-beginner',
+        fgToken: 'color-chip-beginner-fg',
+        bgToken: 'color-chip-beginner-bg',
+      },
+      {
+        level: 'Intermediate',
+        expectedClass: 'chip-intermediate',
+        fgToken: 'color-chip-intermediate-fg',
+        bgToken: 'color-chip-intermediate-bg',
+      },
+      {
+        level: 'Advanced',
+        expectedClass: 'chip-advanced',
+        fgToken: 'color-chip-advanced-fg',
+        bgToken: 'color-chip-advanced-bg',
+      },
+    ];
+
+    it.each(STATUS_TOKEN_PAIRS)(
+      'courseStatusBadge($status) -> .$expectedClass meets WCAG AA (>= 4.5:1) in light mode',
+      ({ status, expectedClass, fgToken, bgToken }) => {
+        const css = readFileSync(path.resolve(__dirname, '../styles/tokens.css'), 'utf8');
+        expect(courseStatusBadge(status)).toBe(expectedClass);
+
+        const fg = getHexToken(css, fgToken);
+        const bg = getHexToken(css, bgToken);
+        expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+      },
+    );
+
+    it.each(STATUS_TOKEN_PAIRS)(
+      'courseStatusBadge($status) -> .$expectedClass meets WCAG AA (>= 4.5:1) in dark mode',
+      ({ status, expectedClass, fgToken, bgToken }) => {
+        const css = readFileSync(path.resolve(__dirname, '../styles/tokens.css'), 'utf8');
+        expect(courseStatusBadge(status)).toBe(expectedClass);
+
+        const fg = getDarkModeToken(css, fgToken);
+        const bg = getDarkModeToken(css, bgToken);
+        expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(4.5);
+      },
+    );
+
+    it.each(LEVEL_CHIP_PAIRS)(
+      'levelChip($level) -> .$expectedClass meets WCAG AA (>= 4.5:1) in light and dark mode',
+      ({ level, expectedClass, fgToken, bgToken }) => {
+        const css = readFileSync(path.resolve(__dirname, '../styles/tokens.css'), 'utf8');
+        expect(levelChip(level)).toBe(expectedClass);
+
+        const lightFg = getHexToken(css, fgToken);
+        const lightBg = getHexToken(css, bgToken);
+        expect(contrastRatio(lightFg, lightBg)).toBeGreaterThanOrEqual(4.5);
+
+        const darkFg = getDarkModeToken(css, fgToken);
+        const darkBg = getDarkModeToken(css, bgToken);
+        expect(contrastRatio(darkFg, darkBg)).toBeGreaterThanOrEqual(4.5);
+      },
+    );
+
+    it('globals.css .badge-archived uses WCAG AA-compliant text-ink-600 rather than low-contrast text-ink-500', () => {
+      const globalsCss = readFileSync(path.resolve(__dirname, '../styles/globals.css'), 'utf8');
+      const archivedRule = globalsCss.match(/\.badge-archived\s*\{([^}]+)\}/)?.[1] ?? '';
+
+      expect(archivedRule).toContain('text-ink-600');
+      expect(archivedRule).not.toContain('text-ink-500');
+      // Verify ink-600 (#6f614f) on ink-100 (#f0ede6) >= 4.5:1
+      expect(contrastRatio('#6f614f', '#f0ede6')).toBeGreaterThanOrEqual(4.5);
     });
   });
 });
