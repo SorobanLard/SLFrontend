@@ -1,7 +1,18 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronRight, X, CheckCircle2, Circle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import {
+  ChevronRight,
+  X,
+  CheckCircle2,
+  Circle,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Users,
+  AlertCircle,
+  RefreshCw,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/utils';
 import type { StudentEnrollmentRow, StudentDetail } from '@/types';
@@ -21,6 +32,9 @@ interface StudentTableProps {
   detail: StudentDetail | null;
   detailLoading: boolean;
   onCloseDetail: () => void;
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -39,6 +53,9 @@ export function StudentTable({
   detail,
   detailLoading,
   onCloseDetail,
+  isLoading = false,
+  error = null,
+  onRetry,
 }: StudentTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('enrolledAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -88,6 +105,50 @@ export function StudentTable({
       return sortDir === 'asc' ? order : -order;
     });
   }, [rows, sortKey, sortDir]);
+
+  if (isLoading) {
+    return (
+      <div
+        role="status"
+        aria-label="Loading enrolled students"
+        data-testid="student-table-loading"
+        className="rounded-2xl border border-ink-100 bg-white p-6 shadow-sm space-y-4"
+      >
+        <div className="h-8 w-48 rounded-lg bg-ink-100 animate-pulse" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="h-12 w-full rounded-lg bg-ink-50 animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        data-testid="student-table-error"
+        className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-3"
+      >
+        <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+        <div>
+          <p className="text-sm font-semibold text-red-900">Unable to load students</p>
+          <p className="text-xs text-red-700 mt-1">{error}</p>
+        </div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3.5 py-2 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex gap-5 items-start">
@@ -150,8 +211,27 @@ export function StudentTable({
             <tbody>
               {sortedRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-sm text-ink-400">
-                    No students found.
+                  <td colSpan={7} data-testid="student-table-empty" className="py-14 px-6 text-center">
+                    <div className="max-w-sm mx-auto space-y-2">
+                      <Users className="h-9 w-9 text-ink-300 mx-auto" />
+                      <p className="text-sm font-semibold text-ink-800">
+                        {selectedCourseId ? 'No students enrolled in this course' : 'No students enrolled yet'}
+                      </p>
+                      <p className="text-xs text-ink-400">
+                        {selectedCourseId
+                          ? 'Try selecting a different course or clearing the course filter.'
+                          : 'Once learners enroll in your published courses, their lesson progress and activity will appear here.'}
+                      </p>
+                      {selectedCourseId && (
+                        <button
+                          type="button"
+                          onClick={() => onCourseFilter('')}
+                          className="mt-2 inline-flex items-center rounded-lg bg-ink-50 px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-100 transition-colors"
+                        >
+                          Show all courses
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
