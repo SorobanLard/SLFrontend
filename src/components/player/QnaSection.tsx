@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { QnaQuestionForm } from './QnaQuestionForm';
 import { QnaFilterBar } from './QnaFilterBar';
@@ -17,6 +18,9 @@ interface QnaSectionProps {
   onSubmitQuestion?: (title: string, body: string) => Promise<void>;
   onSubmitReply?: (questionId: string, text: string) => Promise<void>;
   onUpvote?: (questionId: string) => Promise<void> | void;
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   className?: string;
 }
 
@@ -40,6 +44,9 @@ export function QnaSection({
   onSubmitQuestion,
   onSubmitReply,
   onUpvote,
+  isLoading = false,
+  error = null,
+  onRetry,
   className,
 }: QnaSectionProps) {
   const [questions, setQuestions] = useState<QnaQuestion[]>(initialQuestions);
@@ -135,48 +142,91 @@ export function QnaSection({
 
       <QnaQuestionForm onSubmit={handleNewQuestion} />
 
-      {questions.length > 0 && (
-        <QnaFilterBar
-          search={search}
-          onSearchChange={setSearch}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          filterBy={filterBy}
-          onFilterChange={setFilterBy}
-          resultCount={sorted.length}
-        />
-      )}
-
-      {questions.length === 0 ? (
-        <div className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-10 text-center">
-          <p className="text-2xl mb-3" aria-hidden="true">💬</p>
-          <p className="text-sm font-medium text-sorobanlard-deep mb-1">No questions yet</p>
-          <p className="text-xs text-semantic-text-muted">
-            Be the first to ask something about this lesson.
-          </p>
+      {isLoading ? (
+        <div
+          role="status"
+          aria-label="Loading lesson questions"
+          data-testid="qna-loading"
+          className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-6 space-y-3"
+        >
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div key={idx} className="h-20 w-full rounded-xl bg-ink-50 animate-pulse" />
+          ))}
         </div>
-      ) : sorted.length === 0 ? (
-        <div className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-10 text-center">
-          <p className="text-sm text-semantic-text-muted">
-            No questions match{' '}
-            {search ? <>“{search}”</> : filterBy === 'mine' ? 'your questions' : 'this filter'}.{' '}
+      ) : error ? (
+        <div
+          role="alert"
+          data-testid="qna-error"
+          className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-3"
+        >
+          <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+          <div>
+            <p className="text-sm font-semibold text-red-900">Unable to load lesson Q&amp;A</p>
+            <p className="text-xs text-red-700 mt-1">{error}</p>
+          </div>
+          {onRetry && (
             <button
               type="button"
-              onClick={() => { setSearch(''); setFilterBy('all'); }}
-              className="text-sorobanlard-primary hover:underline underline-offset-2 font-medium"
+              onClick={onRetry}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3.5 py-2 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
             >
-              Clear filters
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
             </button>
-          </p>
+          )}
         </div>
       ) : (
-        <ul className="space-y-4" aria-label="Question list">
-          {sorted.map((question) => (
-            <li key={question.id}>
-              <QuestionCard question={question} onUpvote={handleUpvote} onReply={handleReply} />
-            </li>
-          ))}
-        </ul>
+        <>
+          {questions.length > 0 && (
+            <QnaFilterBar
+              search={search}
+              onSearchChange={setSearch}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              filterBy={filterBy}
+              onFilterChange={setFilterBy}
+              resultCount={sorted.length}
+            />
+          )}
+
+          {questions.length === 0 ? (
+            <div
+              data-testid="qna-empty"
+              className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-10 text-center"
+            >
+              <p className="text-2xl mb-3" aria-hidden="true">💬</p>
+              <p className="text-sm font-medium text-sorobanlard-deep mb-1">No questions yet</p>
+              <p className="text-xs text-semantic-text-muted">
+                Be the first to ask something about this lesson.
+              </p>
+            </div>
+          ) : sorted.length === 0 ? (
+            <div
+              data-testid="qna-filtered-empty"
+              className="rounded-2xl border border-semantic-border bg-semantic-bg-surface p-10 text-center"
+            >
+              <p className="text-sm text-semantic-text-muted">
+                No questions match{' '}
+                {search ? <>“{search}”</> : filterBy === 'mine' ? 'your questions' : 'this filter'}.{' '}
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setFilterBy('all'); }}
+                  className="text-sorobanlard-primary hover:underline underline-offset-2 font-medium"
+                >
+                  Clear filters
+                </button>
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-4" aria-label="Question list">
+              {sorted.map((question) => (
+                <li key={question.id}>
+                  <QuestionCard question={question} onUpvote={handleUpvote} onReply={handleReply} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </section>
   );
