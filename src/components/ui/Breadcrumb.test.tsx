@@ -63,6 +63,43 @@ describe('Breadcrumb', () => {
       const isSpan = spans.some((el) => el.tagName === 'SPAN');
       expect(isSpan).toBe(true);
     });
+
+    it('never renders the current/last item as a clickable link even when href is provided', () => {
+      const itemsWithLastHref = [
+        { label: 'Home', href: '/' },
+        { label: 'Courses', href: '/courses' },
+        { label: 'JavaScript Masterclass', href: '/courses/javascript-masterclass' },
+      ];
+      render(<Breadcrumb items={itemsWithLastHref} />);
+
+      // Parent items remain clickable links
+      expect(screen.getAllByRole('link', { name: 'Home' })[0]).toHaveAttribute('href', '/');
+      expect(screen.getAllByRole('link', { name: 'Courses' })[0]).toHaveAttribute('href', '/courses');
+
+      // Current page item must not be rendered as an <a> link and must carry aria-current="page"
+      expect(screen.queryAllByRole('link', { name: 'JavaScript Masterclass' })).toHaveLength(0);
+      const currentEls = screen.getAllByText('JavaScript Masterclass');
+      currentEls.forEach((el) => {
+        expect(el.tagName).toBe('SPAN');
+        expect(el).toHaveAttribute('aria-current', 'page');
+      });
+    });
+
+    it('supports explicitly marking an item as current via current: true', () => {
+      const explicitCurrentItems = [
+        { label: 'Home', href: '/' },
+        { label: 'Courses', href: '/courses', current: true },
+        { label: 'Overview' },
+      ];
+      render(<Breadcrumb items={explicitCurrentItems} />);
+
+      expect(screen.queryAllByRole('link', { name: 'Courses' })).toHaveLength(0);
+      const currentEls = screen.getAllByText('Courses');
+      currentEls.forEach((el) => {
+        expect(el.tagName).toBe('SPAN');
+        expect(el).toHaveAttribute('aria-current', 'page');
+      });
+    });
   });
 
   describe('ARIA attributes', () => {
