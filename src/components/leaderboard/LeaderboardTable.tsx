@@ -1,5 +1,6 @@
 'use client';
 
+import { Trophy, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LeaderboardEntry } from '@/types';
 
@@ -7,6 +8,9 @@ interface LeaderboardTableProps {
   entries: LeaderboardEntry[];
   currentUserId?: string | null;
   currentUserEntry?: LeaderboardEntry | null;
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 const MEDAL: Record<number, { emoji: string; label: string; rowClass: string; rankClass: string }> = {
@@ -138,6 +142,9 @@ export function LeaderboardTable({
   entries,
   currentUserId,
   currentUserEntry,
+  isLoading = false,
+  error = null,
+  onRetry,
 }: LeaderboardTableProps) {
   const isCurrentUser = (entry: LeaderboardEntry) =>
     !!currentUserId && entry.userId === currentUserId;
@@ -146,6 +153,47 @@ export function LeaderboardTable({
   const currentUserInTable = currentUserEntry
     ? entries.some((e) => e.userId === currentUserEntry.userId)
     : false;
+
+  if (isLoading) {
+    return (
+      <div
+        role="status"
+        aria-label="Loading leaderboard"
+        data-testid="leaderboard-loading"
+        className="overflow-hidden rounded-2xl border border-ink-100 bg-white p-6 shadow-sm space-y-3"
+      >
+        {Array.from({ length: 5 }).map((_, idx) => (
+          <div key={idx} className="h-11 w-full rounded-lg bg-ink-50 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        role="alert"
+        data-testid="leaderboard-error"
+        className="overflow-hidden rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-3"
+      >
+        <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+        <div>
+          <p className="text-sm font-semibold text-red-900">Unable to load leaderboard</p>
+          <p className="text-xs text-red-700 mt-1">{error}</p>
+        </div>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3.5 py-2 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-sm">
@@ -216,8 +264,15 @@ export function LeaderboardTable({
       </div>
 
       {entries.length === 0 && (
-        <div className="py-16 text-center text-sm text-ink-400">
-          No data for this period yet. Keep learning!
+        <div
+          data-testid="leaderboard-empty"
+          className="py-16 px-6 text-center space-y-2"
+        >
+          <Trophy className="h-9 w-9 text-ink-300 mx-auto" />
+          <p className="text-sm font-semibold text-ink-800">No rankings for this period yet</p>
+          <p className="text-xs text-ink-400">
+            No data for this period yet. Keep learning to claim the top spot!
+          </p>
         </div>
       )}
     </div>
