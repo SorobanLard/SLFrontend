@@ -59,6 +59,7 @@ export function QuizComponent({
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({});
   const [showResults, setShowResults] = useState(false);
+  const [expiredByTimer, setExpiredByTimer] = useState(false);
   const [orderedQuestions, setOrderedQuestions] = useState<QuizQuestion[]>(() =>
     randomizeQuestions ? shuffleQuestions(questions) : questions,
   );
@@ -104,6 +105,7 @@ export function QuizComponent({
       if (!question || prev[question.id] || selected.length === 0) return prev;
       return { ...prev, [question.id]: true };
     });
+    setExpiredByTimer(true);
     setShowResults(true);
   }, [question, selected]);
 
@@ -112,6 +114,24 @@ export function QuizComponent({
     enabled: !showResults,
     onExpire: handleTimeUp,
   });
+
+  // Compute non-spamming milestone announcements for screen readers.
+  const timerAnnouncement = useMemo(() => {
+    if (expiredByTimer || (isActive && secondsLeft <= 0)) {
+      return "Time is up. Quiz submitted.";
+    }
+    if (!isActive || !timeLimitSeconds) return "";
+    if (secondsLeft <= 10 && timeLimitSeconds > 10) {
+      return "Warning: 10 seconds remaining.";
+    }
+    if (secondsLeft <= 30 && timeLimitSeconds > 30) {
+      return "Warning: 30 seconds remaining.";
+    }
+    if (secondsLeft <= 60 && timeLimitSeconds > 60) {
+      return "1 minute remaining.";
+    }
+    return "";
+  }, [expiredByTimer, isActive, secondsLeft, timeLimitSeconds]);
 
   const handleToggleOption = useCallback(
     (optionId: string) => {
@@ -155,6 +175,7 @@ export function QuizComponent({
     setAnswers({});
     setSubmitted({});
     setShowResults(false);
+    setExpiredByTimer(false);
 
     if (randomizeQuestions) {
       setOrderedQuestions(shuffleQuestions(questions));
@@ -188,6 +209,17 @@ export function QuizComponent({
   if (showResults) {
     return (
       <div className="flex flex-col items-center rounded-2xl border border-ink-200 bg-white p-8 text-center">
+        {expiredByTimer && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            aria-atomic="true"
+            className="sr-only"
+            data-testid="quiz-timer-announcer"
+          >
+            {timerAnnouncement}
+          </div>
+        )}
         <div
           className={cn(
             "flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold",
@@ -248,6 +280,26 @@ export function QuizComponent({
 
   return (
     <div className="rounded-2xl border border-ink-200 bg-white p-6">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="quiz-question-announcer"
+      >
+        {`Question ${currentIndex + 1} of ${total}: ${question.question}`}
+      </div>
+      {isActive && (
+        <div
+          role={isWarning ? "alert" : "status"}
+          aria-live={isWarning ? "assertive" : "polite"}
+          aria-atomic="true"
+          className="sr-only"
+          data-testid="quiz-timer-announcer"
+        >
+          {timerAnnouncement}
+        </div>
+      )}
       <div className="mb-6">
         <div className="flex items-center justify-between gap-3 text-sm text-ink-500">
           <span>

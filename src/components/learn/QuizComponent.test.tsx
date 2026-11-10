@@ -311,4 +311,92 @@ describe("QuizComponent", () => {
       randomSpy.mockRestore();
     }
   });
+
+  it("announces question transitions via polite aria-live status region", async () => {
+    const user = userEvent.setup();
+    render(<QuizComponent questions={questions} />);
+
+    const questionAnnouncer = screen.getByTestId("quiz-question-announcer");
+    expect(questionAnnouncer).toHaveAttribute("role", "status");
+    expect(questionAnnouncer).toHaveAttribute("aria-live", "polite");
+    expect(questionAnnouncer).toHaveAttribute("aria-atomic", "true");
+    expect(questionAnnouncer).toHaveTextContent(
+      "Question 1 of 3: Which planet is closest to the Sun?",
+    );
+
+    await user.click(screen.getByRole("radio", { name: /Mercury/ }));
+    await user.click(screen.getByRole("button", { name: "Submit Answer" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByTestId("quiz-question-announcer")).toHaveTextContent(
+      "Question 2 of 3: Select all gas giants.",
+    );
+  });
+
+  it("announces timer milestones and expiration via aria-live without spamming every second", () => {
+    vi.useFakeTimers();
+    try {
+      render(<QuizComponent questions={questions} timeLimitSeconds={90} />);
+
+      const timerAnnouncer = screen.getByTestId("quiz-timer-announcer");
+      expect(timerAnnouncer).toHaveAttribute("aria-live", "polite");
+      expect(timerAnnouncer).toHaveTextContent("");
+
+      // At 75s remaining (15s elapsed), no milestone should be announced
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveTextContent("");
+
+      // At 60s remaining (30s total elapsed), polite 1-minute milestone announced
+      act(() => {
+        vi.advanceTimersByTime(15_000);
+      });
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveAttribute(
+        "aria-live",
+        "polite",
+      );
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveTextContent(
+        "1 minute remaining.",
+      );
+
+      // At 30s remaining (60s total elapsed), assertive warning milestone announced
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveAttribute(
+        "role",
+        "alert",
+      );
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveAttribute(
+        "aria-live",
+        "assertive",
+      );
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveTextContent(
+        "Warning: 30 seconds remaining.",
+      );
+
+      // At 10s remaining (80s total elapsed), assertive 10s warning milestone announced
+      act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveTextContent(
+        "Warning: 10 seconds remaining.",
+      );
+
+      // At 0s remaining (90s total elapsed), expiration announced on results screen
+      act(() => {
+        vi.advanceTimersByTime(10_000);
+      });
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveAttribute(
+        "aria-live",
+        "assertive",
+      );
+      expect(screen.getByTestId("quiz-timer-announcer")).toHaveTextContent(
+        "Time is up. Quiz submitted.",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
