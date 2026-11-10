@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   useCallback,
@@ -14,7 +15,7 @@ import { cn } from '@/lib/utils';
 const MAX_TAGS = 10;
 const DEBOUNCE_MS = 300;
 
-interface TagInputProps {
+export interface TagInputProps {
   /** Controlled value */
   value: string[];
   onChange: (tags: string[]) => void;
@@ -23,6 +24,10 @@ interface TagInputProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  /** Accessible label text associated with the text input */
+  label?: string;
+  /** ID of an external element that labels the input */
+  ariaLabelledBy?: string;
 }
 
 export function TagInput({
@@ -32,11 +37,21 @@ export function TagInput({
   className,
   disabled = false,
   id,
+  label,
+  ariaLabelledBy,
 }: TagInputProps) {
+  const generatedId = useId();
+  const inputId = id ?? `tag-input-${generatedId}`;
+  const labelId = `${inputId}-label`;
+  const countId = `${inputId}-count`;
+  const hintId = `${inputId}-hint`;
+  const listboxId = `${inputId}-suggestions`;
+
   const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isOpen, setIsOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState('');
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -82,7 +97,11 @@ export function TagInput({
     (tag: string) => {
       const trimmed = tag.trim();
       if (!trimmed || value.includes(trimmed) || atMax) return;
-      onChange([...value, trimmed]);
+      const nextTags = [...value, trimmed];
+      onChange(nextTags);
+      setAnnouncement(
+        `Added tag ${trimmed}. ${nextTags.length} of ${MAX_TAGS} tags added.`,
+      );
       setInputValue('');
       setSuggestions([]);
       setIsOpen(false);
@@ -95,7 +114,11 @@ export function TagInput({
   // ── Remove a tag ──────────────────────────────────────────────────────
   const removeTag = useCallback(
     (tag: string) => {
-      onChange(value.filter((t) => t !== tag));
+      const nextTags = value.filter((t) => t !== tag);
+      onChange(nextTags);
+      setAnnouncement(
+        `Removed tag ${tag}. ${nextTags.length} of ${MAX_TAGS} tags added.`,
+      );
       inputRef.current?.focus();
     },
     [onChange, value],
@@ -168,8 +191,31 @@ export function TagInput({
 
   return (
     <div className={cn('space-y-1.5', className)} data-tag-input>
+      {/* Associated label for the tag input */}
+      {!ariaLabelledBy && (
+        <label
+          id={labelId}
+          htmlFor={inputId}
+          className={label ? 'block text-sm font-medium text-ink-700' : 'sr-only'}
+        >
+          {label ?? 'Course skills and tags'}
+        </label>
+      )}
+
+      {/* Polite live region announcing added/removed tags */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="tag-live-announcer"
+      >
+        {announcement}
+      </div>
+
       {/* Tag count indicator */}
       <div
+        id={countId}
         className={cn(
           'text-xs font-medium',
           atMax ? 'text-amber-600' : 'text-ink-400',
@@ -220,7 +266,7 @@ export function TagInput({
         {!atMax && !disabled && (
           <input
             ref={inputRef}
-            id={id}
+            id={inputId}
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -229,11 +275,13 @@ export function TagInput({
             placeholder={value.length === 0 ? placeholder : ''}
             className="min-w-[8rem] flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 focus:outline-none"
             autoComplete="off"
+            aria-labelledby={ariaLabelledBy}
+            aria-describedby={`${countId} ${hintId}`}
             aria-autocomplete="list"
             aria-expanded={isOpen}
-            aria-controls={isOpen ? 'tag-suggestions' : undefined}
+            aria-controls={isOpen ? listboxId : undefined}
             aria-activedescendant={
-              activeIndex >= 0 ? `tag-suggestion-${activeIndex}` : undefined
+              activeIndex >= 0 ? `${inputId}-suggestion-${activeIndex}` : undefined
             }
             role="combobox"
           />
@@ -245,7 +293,7 @@ export function TagInput({
         <div className="relative z-20">
           <ul
             ref={listRef}
-            id="tag-suggestions"
+            id={listboxId}
             role="listbox"
             aria-label="Tag suggestions"
             className="absolute top-1 w-full overflow-auto rounded-xl border border-ink-100 bg-white py-1 shadow-lg"
@@ -254,7 +302,7 @@ export function TagInput({
             {suggestions.map((s, i) => (
               <li
                 key={s}
-                id={`tag-suggestion-${i}`}
+                id={`${inputId}-suggestion-${i}`}
                 role="option"
                 aria-selected={i === activeIndex}
                 onMouseDown={(e) => {
@@ -279,7 +327,7 @@ export function TagInput({
 
       {/* Keyboard hint */}
       {!atMax && !disabled && (
-        <p className="text-[11px] text-ink-400">
+        <p id={hintId} className="text-[11px] text-ink-400">
           Press <kbd className="rounded bg-ink-100 px-1 py-0.5 font-mono text-[10px]">Enter</kbd>{' '}
           or{' '}
           <kbd className="rounded bg-ink-100 px-1 py-0.5 font-mono text-[10px]">,</kbd> to add ·{' '}
