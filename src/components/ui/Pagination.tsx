@@ -92,7 +92,11 @@ export function Pagination({
     }
 
     if (updateUrl && router && pathname) {
-      const params = new URLSearchParams(searchParams ? searchParams.toString() : '');
+      const rawQuery =
+        searchParams && searchParams.toString !== Object.prototype.toString
+          ? searchParams.toString()
+          : '';
+      const params = new URLSearchParams(rawQuery);
       params.set(paramName, String(newPage));
       const queryString = params.toString();
       const targetUrl = queryString ? `${pathname}?${queryString}` : pathname;
@@ -146,7 +150,11 @@ export function Pagination({
       </button>
 
       {/* ── Mobile label ── */}
-      <span className="sm:hidden px-3 py-1.5 text-sm text-ink-600">
+      <span
+        className="sm:hidden px-3 py-1.5 text-sm text-ink-600"
+        aria-current="page"
+        aria-live="polite"
+      >
         Page {activePage} of {finalTotalPages}
       </span>
 
@@ -170,7 +178,7 @@ export function Pagination({
               }}
               type="button"
               onClick={() => handlePageChange(item)}
-              aria-label={`Page ${item}`}
+              aria-label={item === activePage ? `Current page, page ${item}` : `Go to page ${item}`}
               aria-current={item === activePage ? 'page' : undefined}
               className={cn(
                 'inline-flex h-9 w-9 items-center justify-center rounded-xl text-sm font-medium transition-all',

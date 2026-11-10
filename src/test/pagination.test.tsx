@@ -20,16 +20,16 @@ describe('Pagination Component', () => {
 
   it('renders page numbers correctly for small total counts', () => {
     render(<Pagination currentPage={1} totalPages={5} updateUrl={false} />);
-    expect(screen.getByRole('button', { name: 'Page 1' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Page 5' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Current page, page 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Go to page 5' })).toBeInTheDocument();
     expect(screen.queryByText('…')).not.toBeInTheDocument();
   });
 
   it('shows ellipsis for large page ranges', () => {
     render(<Pagination currentPage={5} totalPages={10} updateUrl={false} />);
-    expect(screen.getByRole('button', { name: 'Page 1' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Page 5' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Page 10' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Go to page 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Current page, page 5' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Go to page 10' })).toBeInTheDocument();
     const ellipsisElements = screen.getAllByText('…');
     expect(ellipsisElements.length).toBeGreaterThan(0);
   });
@@ -50,23 +50,26 @@ describe('Pagination Component', () => {
     expect(nextButton).toBeDisabled();
   });
 
-  it('applies aria-current and #7F77DD background styling to current page', () => {
-    render(<Pagination currentPage={3} totalPages={5} updateUrl={false} />);
-    const activeBtn = screen.getByRole('button', { name: 'Page 3' });
+  it('applies aria-current="page", descriptive aria-labels, and #7F77DD background styling to current page', () => {
+    render(<Pagination currentPage={2} totalPages={5} updateUrl={false} />);
+    const activeBtn = screen.getByRole('button', { name: 'Current page, page 2' });
     expect(activeBtn).toHaveAttribute('aria-current', 'page');
     expect(activeBtn.className).toContain('bg-[#7F77DD]');
+
+    const inactiveBtn = screen.getByRole('button', { name: 'Go to page 3' });
+    expect(inactiveBtn).not.toHaveAttribute('aria-current');
   });
 
   it('calculates totalPages from totalItems and itemsPerPage when totalPages is omitted', () => {
     render(<Pagination currentPage={1} totalItems={45} itemsPerPage={10} updateUrl={false} />);
-    expect(screen.getByRole('button', { name: 'Page 5' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Go to page 5' })).toBeInTheDocument();
   });
 
   it('triggers onPageChange and updates URL search params when page button is clicked', () => {
     const handlePageChange = vi.fn();
     render(<Pagination currentPage={1} totalPages={5} onPageChange={handlePageChange} paramName="page" />);
 
-    const page2Btn = screen.getByRole('button', { name: 'Page 2' });
+    const page2Btn = screen.getByRole('button', { name: 'Go to page 2' });
     fireEvent.click(page2Btn);
 
     expect(handlePageChange).toHaveBeenCalledWith(2);

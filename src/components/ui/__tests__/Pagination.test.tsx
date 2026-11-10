@@ -88,8 +88,28 @@ describe('Pagination jump-to-page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go to previous page' }));
     expect(onPageChange).toHaveBeenLastCalledWith(4);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Page 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Go to page 1' }));
     expect(onPageChange).toHaveBeenLastCalledWith(1);
+  });
+
+  describe('Accessibility: aria-current and button labels', () => {
+    it('sets aria-current="page" and "Current page, page X" on the active button and "Go to page Y" on inactive buttons', () => {
+      render(<Pagination currentPage={2} totalPages={5} updateUrl={false} />);
+
+      const activeBtn = screen.getByRole('button', { name: 'Current page, page 2' });
+      expect(activeBtn).toHaveAttribute('aria-current', 'page');
+
+      const page3Btn = screen.getByRole('button', { name: 'Go to page 3' });
+      expect(page3Btn).not.toHaveAttribute('aria-current');
+    });
+
+    it('marks the mobile page summary with aria-current="page" and aria-live="polite"', () => {
+      render(<Pagination currentPage={2} totalPages={5} updateUrl={false} />);
+
+      const mobileSummary = screen.getByText('Page 2 of 5');
+      expect(mobileSummary).toHaveAttribute('aria-current', 'page');
+      expect(mobileSummary).toHaveAttribute('aria-live', 'polite');
+    });
   });
 
   describe('Single page of results edge case', () => {
