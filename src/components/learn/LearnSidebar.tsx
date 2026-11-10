@@ -154,29 +154,29 @@ export function LearnSidebar({
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-ink-200 px-4 py-3">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-ink-900">Course Curriculum</h2>
+      <div className="flex-shrink-0 border-b border-ink-200 px-3 sm:px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-ink-900 truncate">Course Curriculum</h2>
           {isMobile && (
             <button
               onClick={() => setDrawerOpen(false)}
-              className="rounded-lg p-1 text-ink-500 hover:bg-ink-100 hover:text-ink-700"
+              className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100 hover:text-ink-700 shrink-0"
               aria-label="Close sidebar"
             >
               <X className="h-5 w-5" />
             </button>
           )}
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-ink-500">
             {stats.completedCount}/{stats.totalLectures} completed
           </p>
           <button
             type="button"
             onClick={toggleAll}
-            className="text-xs font-medium text-sorobanlard-primary transition-colors hover:text-sorobanlard-mid"
+            className="text-xs font-medium text-sorobanlard-primary transition-colors hover:text-sorobanlard-mid shrink-0"
           >
             {allExpanded ? 'Collapse All' : 'Expand All'}
           </button>
@@ -205,7 +205,7 @@ export function LearnSidebar({
       </div>
 
       {/* Sections */}
-      <div className="flex-1 overflow-y-auto divide-y divide-ink-100">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden divide-y divide-ink-100">
         <p className="sr-only" aria-live="polite" aria-atomic="true">
           {currentLesson ? `Now playing: ${currentLesson.title}` : 'No lesson is currently playing.'}
         </p>
@@ -348,13 +348,16 @@ export function LearnSidebar({
 
         {/* Drawer */}
         <div
+          data-testid="learn-sidebar-mobile-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Course Curriculum"
           className={cn(
-            'fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-in-out',
+            'fixed inset-x-0 bottom-0 z-50 flex flex-col max-h-[80vh] w-full max-w-full overflow-hidden rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 ease-in-out',
             drawerOpen ? 'translate-y-0' : 'translate-y-full',
           )}
-          style={{ maxHeight: '80vh' }}
         >
-          <div className="flex justify-center pt-2 pb-1">
+          <div className="flex flex-shrink-0 justify-center pt-2 pb-1">
             <div className="h-1 w-10 rounded-full bg-ink-300" />
           </div>
           {sidebarContent}
@@ -366,9 +369,10 @@ export function LearnSidebar({
   // Desktop: collapsible sidebar
   return (
     <div
+      data-testid="learn-sidebar-desktop"
       className={cn(
-        'relative flex flex-col border-r border-ink-200 bg-white transition-all duration-300 ease-in-out',
-        collapsed ? 'w-12' : 'w-72 lg:w-80',
+        'relative flex flex-col shrink-0 max-w-full border-r border-ink-200 bg-white transition-all duration-300 ease-in-out',
+        collapsed ? 'w-12' : 'w-64 md:w-72 lg:w-80',
       )}
     >
       {/* Collapse toggle */}
