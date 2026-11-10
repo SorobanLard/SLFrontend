@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, AlertCircle, BookOpen, RefreshCw } from 'lucide-react';
 import { CourseCard } from '@/components/courses/CourseCard';
 import { coursesApi } from '@/lib/api/services';
 import { useAuthStore } from '@/lib/hooks/use-auth-store';
@@ -16,43 +16,156 @@ export function RecentlyViewedTracker({ courseId }: { courseId: string }) {
   return null;
 }
 
-export function RecentlyViewed() {
+export interface RecentlyViewedProps {
+  showEmptyState?: boolean;
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+}
+
+export function RecentlyViewed({
+  showEmptyState = false,
+  isLoading: isLoadingProp,
+  error: errorProp,
+  onRetry,
+}: RecentlyViewedProps = {}) {
   const isConnected = useAuthStore((state) => state.isConnected);
   const rehydrate = useAuthStore((state) => state.rehydrate);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     rehydrate();
   }, [rehydrate]);
 
-  useEffect(() => {
+  const loadCourses = useCallback(() => {
     if (!isConnected) {
       setCourses([]);
-      return;
+      setLoading(false);
+      setFetchError(null);
+      return () => {};
     }
 
     const entries = getRecentlyViewed();
+    if (entries.length === 0) {
+      setCourses([]);
+      setLoading(false);
+      setFetchError(null);
+      return () => {};
+    }
+
     let cancelled = false;
-    Promise.all(entries.map(({ courseId }) => coursesApi.get(courseId).catch(() => null))).then(
-      (results) => {
-        if (!cancelled) {
-          setCourses(results.filter((course): course is Course => course !== null));
-        }
-      },
-    );
+    setLoading(true);
+    setFetchError(null);
+
+    let failedCount = 0;
+    Promise.all(
+      entries.map(({ courseId }) =>
+        coursesApi.get(courseId).catch(() => {
+          failedCount += 1;
+          return null;
+        }),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const valid = results.filter((course): course is Course => course !== null);
+      setCourses(valid);
+      if (valid.length === 0 && failedCount > 0) {
+        setFetchError('Unable to load your recently viewed courses.');
+      }
+      setLoading(false);
+    });
+
     return () => {
       cancelled = true;
     };
   }, [isConnected]);
 
+  useEffect(() => {
+    return loadCourses();
+  }, [loadCourses, retryTick]);
+
   const handleClear = () => {
     clearRecentlyViewed();
     setCourses([]);
+    setFetchError(null);
     setConfirmingClear(false);
   };
 
-  if (!isConnected || courses.length === 0) return null;
+  const activeLoading = isLoadingProp ?? loading;
+  const activeError = errorProp ?? fetchError;
+
+  if (activeLoading) {
+    return (
+      <section
+        role="status"
+        aria-label="Loading recently viewed courses"
+        data-testid="recently-viewed-loading"
+        className="space-y-4"
+      >
+        <div className="h-7 w-48 rounded-lg bg-ink-100 animate-pulse" />
+        <div className="flex gap-4 overflow-hidden">
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div key={idx} className="h-48 w-64 shrink-0 rounded-xl bg-ink-50 animate-pulse" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (activeError) {
+    return (
+      <section
+        role="alert"
+        data-testid="recently-viewed-error"
+        className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center space-y-3"
+      >
+        <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
+        <div>
+          <p className="text-sm font-semibold text-red-900">Recently viewed unavailable</p>
+          <p className="text-xs text-red-700 mt-1">{activeError}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => (onRetry ? onRetry() : setRetryTick((t) => t + 1))}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3.5 py-2 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Retry
+        </button>
+      </section>
+    );
+  }
+
+  if (!isConnected || courses.length === 0) {
+    if (!showEmptyState) return null;
+    return (
+      <section
+        data-testid="recently-viewed-empty"
+        aria-labelledby="recently-viewed-heading"
+        className="rounded-2xl border border-ink-100 bg-white p-8 text-center space-y-3"
+      >
+        <BookOpen className="h-8 w-8 text-ink-300 mx-auto" />
+        <div>
+          <h2 id="recently-viewed-heading" className="text-sm font-semibold text-ink-800">
+            No recently viewed courses yet
+          </h2>
+          <p className="text-xs text-ink-400 mt-1">
+            Courses you explore will appear here so you can easily pick up where you left off.
+          </p>
+        </div>
+        <Link
+          href="/courses"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-sorobanlard-primary hover:underline"
+        >
+          Browse courses <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="recently-viewed-heading">
