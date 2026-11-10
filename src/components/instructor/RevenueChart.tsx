@@ -2,11 +2,15 @@
 
 import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import type { TooltipProps } from 'recharts';
 import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatUsdc } from '@/lib/utils';
 import { downloadCsv, toCsv } from '@/lib/utils/csv';
+
+interface TooltipProps<TValue = number, TName = string> {
+  active?: boolean;
+  payload?: Array<{ value?: TValue; name?: TName; payload: unknown }>;
+}
 
 interface RevenueData {
   month: string;
@@ -77,63 +81,100 @@ function ChartSkeleton({ height = 300 }: { height: number }) {
  * next/dynamic keeps it out of the main (student) bundle and defers the
  * download until the chart is actually rendered.
  */
+function FallbackBarChart({
+  data,
+  height,
+}: {
+  data: RevenueData[];
+  height: number;
+}) {
+  const maxRevenue = Math.max(...data.map((d) => d.revenue), 1);
+  return (
+    <div
+      style={{ height }}
+      data-testid="revenue-bar-chart"
+      className="flex items-end justify-between gap-1.5 sm:gap-2 pt-6 pb-2 px-2 w-full min-w-0 overflow-x-auto"
+    >
+      {data.map((item) => {
+        const pct = Math.max(8, Math.round((item.revenue / maxRevenue) * 100));
+        return (
+          <div key={item.date} className="flex flex-1 min-w-[28px] flex-col items-center gap-1 h-full justify-end">
+            <div
+              className="w-full max-w-[48px] rounded-t-md bg-sorobanlard-primary transition-all"
+              style={{ height: `${pct}%` }}
+              title={`${item.month}: ${formatUsdc(item.revenue)}`}
+            />
+            <span className="text-[10px] sm:text-xs text-semantic-text-muted truncate max-w-full">
+              {item.month}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const RECHARTS_PKG = 'recharts';
+
 const RevenueBarChart = dynamic(
   () =>
-    import('recharts').then((recharts) => {
-      const {
-        BarChart,
-        Bar,
-        XAxis,
-        YAxis,
-        CartesianGrid,
-        Tooltip,
-        ResponsiveContainer,
-      } = recharts;
+    import(/* @vite-ignore */ RECHARTS_PKG)
+      .then((recharts) => {
+        const {
+          BarChart,
+          Bar,
+          XAxis,
+          YAxis,
+          CartesianGrid,
+          Tooltip,
+          ResponsiveContainer,
+        } = recharts;
 
-      function RevenueBarChartInner({
-        data,
-        height,
-      }: {
-        data: RevenueData[];
-        height: number;
-      }) {
-        return (
-          <ResponsiveContainer width="100%" height={height}>
-            <BarChart data={data}>
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="var(--color-border-default)"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="month"
-                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-                tickLine={false}
-                axisLine={{ stroke: 'var(--color-border-default)' }}
-              />
-              <YAxis
-                tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-                tickLine={false}
-                axisLine={{ stroke: 'var(--color-border-default)' }}
-                tickFormatter={(value: number) => `$${(value / 1000).toFixed(0)}k`}
-              />
-              <Tooltip
-                content={<CustomTooltip />}
-                cursor={{ fill: 'rgba(127, 119, 221, 0.05)' }}
-              />
-              <Bar
-                dataKey="revenue"
-                fill="var(--color-brand-primary)"
-                radius={[8, 8, 0, 0]}
-                maxBarSize={60}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-      }
+        function RevenueBarChartInner({
+          data,
+          height,
+        }: {
+          data: RevenueData[];
+          height: number;
+        }) {
+          return (
+            <ResponsiveContainer width="100%" height={height}>
+              <BarChart data={data}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--color-border-default)"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'var(--color-border-default)' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
+                  tickLine={false}
+                  axisLine={{ stroke: 'var(--color-border-default)' }}
+                  tickFormatter={(value: number) => `$${(value / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  content={<CustomTooltip />}
+                  cursor={{ fill: 'rgba(127, 119, 221, 0.05)' }}
+                />
+                <Bar
+                  dataKey="revenue"
+                  fill="var(--color-brand-primary)"
+                  radius={[8, 8, 0, 0]}
+                  maxBarSize={60}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          );
+        }
 
-      return RevenueBarChartInner;
-    }),
+        return RevenueBarChartInner;
+      })
+      .catch(() => FallbackBarChart),
   {
     ssr: false,
     loading: () => <ChartSkeleton height={300} />,
@@ -185,14 +226,20 @@ export function RevenueChart({
 
   return (
     // bg-semantic-bg-surface adapts: #f8f8ff (light) → #16131f (dark)
-    <div className="w-full rounded-lg bg-semantic-bg-surface p-4">
+    <div
+      data-testid="revenue-chart-container"
+      className="w-full min-w-0 overflow-hidden rounded-lg bg-semantic-bg-surface p-3 sm:p-4"
+    >
       {(rangeLabel || exportFilename) && (
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <p className="text-xs text-semantic-text-muted">{rangeLabel}</p>
+        <div
+          data-testid="revenue-chart-header"
+          className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-3"
+        >
+          <p className="text-xs text-semantic-text-muted min-w-0 truncate">{rangeLabel}</p>
           {exportFilename && (
             <button
               onClick={handleExportCsv}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-semantic-border text-semantic-text-body hover:bg-semantic-border-strong transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-semantic-border text-semantic-text-body hover:bg-semantic-border-strong transition-colors shrink-0"
               title="Download revenue data as CSV"
             >
               <Download className="w-3.5 h-3.5" />
@@ -202,38 +249,6 @@ export function RevenueChart({
         </div>
       )}
       <RevenueBarChart data={chartData} height={height} />
-      <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={chartData}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="var(--color-border-default)"
-            vertical={false}
-          />
-          <XAxis
-            dataKey="month"
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            tickLine={false}
-            axisLine={{ stroke: 'var(--color-border-default)' }}
-          />
-          <YAxis
-            tick={{ fontSize: 12, fill: 'var(--color-text-muted)' }}
-            tickLine={false}
-            axisLine={{ stroke: 'var(--color-border-default)' }}
-            tickFormatter={(value: number) => `$${(value / 1000).toFixed(0)}k`}
-          />
-          <Tooltip
-            content={<CustomTooltip />}
-            // Uses --color-brand-primary-rgb (74 66 184) so the tint adapts with the token
-            cursor={{ fill: 'rgb(var(--color-brand-primary-rgb) / 0.05)' }}
-          />
-          <Bar
-            dataKey="revenue"
-            fill="var(--color-brand-primary)"
-            radius={[8, 8, 0, 0]}
-            maxBarSize={60}
-          />
-        </BarChart>
-      </ResponsiveContainer>
     </div>
   );
 }
