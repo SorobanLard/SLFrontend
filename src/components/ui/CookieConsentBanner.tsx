@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Settings2, ShieldCheck, X } from 'lucide-react';
 import { useToast } from '@/lib/hooks/use-toast';
 
@@ -56,6 +56,7 @@ export function CookieConsentBanner() {
   const [isVisible, setIsVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [preferences, setPreferences] = useState<CookiePreferences>(defaultPreferences);
+  const bannerRef = useRef<HTMLDivElement | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -67,6 +68,12 @@ export function CookieConsentBanner() {
 
     setPreferences(stored.preferences);
   }, []);
+
+  useEffect(() => {
+    if (isVisible && !isModalOpen) {
+      bannerRef.current?.focus();
+    }
+  }, [isVisible, isModalOpen]);
 
   const savePreferences = (
     nextPreferences: CookiePreferences,
@@ -112,8 +119,12 @@ export function CookieConsentBanner() {
   return (
     <>
       <div
-        className="fixed bottom-0 left-0 z-[60] w-full border-t border-[#D5D2F6] bg-[#26215C] px-4 py-4 text-white shadow-[0_-12px_40px_rgba(38,33,92,0.16)] sm:px-6 lg:px-8"
-        role="status"
+        ref={bannerRef}
+        tabIndex={-1}
+        className="fixed bottom-0 left-0 z-[60] w-full border-t border-[#D5D2F6] bg-[#26215C] px-4 py-4 text-white shadow-[0_-12px_40px_rgba(38,33,92,0.16)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#EEEDFE] sm:px-6 lg:px-8"
+        role="region"
+        aria-label="Cookie consent"
+        aria-describedby="cookie-consent-description"
         aria-live="polite"
       >
         <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -122,7 +133,7 @@ export function CookieConsentBanner() {
               <ShieldCheck className="h-5 w-5 text-[#EEEDFE]" aria-hidden="true" />
             </div>
             <div className="max-w-2xl">
-              <p className="text-sm font-semibold leading-6">
+              <p id="cookie-consent-description" className="text-sm font-semibold leading-6">
                 We use cookies to improve your experience. See our{' '}
                 <Link href="/privacy" className="underline decoration-[#7F77DD] underline-offset-4">
                   Privacy Policy
