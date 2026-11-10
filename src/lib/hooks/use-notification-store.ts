@@ -57,9 +57,10 @@ interface NotificationState {
   notifications: Notification[];
   loading: boolean;
   fetched: boolean;
+  error: string | null;
 
-  /** Load from API; fall back to mock data when the API fails. */
-  fetchNotifications: () => Promise<void>;
+  /** Load from API; fall back to mock data when the API fails unless fallbackToMock is false. */
+  fetchNotifications: (options?: { fallbackToMock?: boolean }) => Promise<void>;
 
   /** Optimistically mark a single notification as read. */
   markRead: (id: string) => void;
@@ -72,20 +73,27 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   loading: false,
   fetched: false,
+  error: null,
 
-  fetchNotifications: async () => {
+  fetchNotifications: async (options) => {
     if (get().loading) return;
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const res = await notificationsApi.list();
       // The API returns PaginatedResponse<Notification>; extract the data array.
       const items: Notification[] = Array.isArray(res)
         ? res
         : (res as { data: Notification[] }).data ?? [];
-      set({ notifications: items, fetched: true });
-    } catch {
-      // Backend unavailable in dev — use mock seed so the UI is always testable.
-      set({ notifications: MOCK_NOTIFICATIONS, fetched: true });
+      set({ notifications: items, fetched: true, error: null });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to load notifications.';
+      if (options?.fallbackToMock === false) {
+        set({ notifications: [], fetched: true, error: message });
+      } else {
+        // Backend unavailable in dev — use mock seed so the UI is always testable.
+        set({ notifications: MOCK_NOTIFICATIONS, fetched: true, error: null });
+      }
     } finally {
       set({ loading: false });
     }

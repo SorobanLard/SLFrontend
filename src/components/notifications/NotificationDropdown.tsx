@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCheck, Loader2 } from 'lucide-react';
+import { Bell, CheckCheck, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn, timeAgo } from '@/lib/utils';
 import type { Notification } from '@/types';
 import { isToday } from 'date-fns';
@@ -131,11 +131,33 @@ function NotificationRow({ notification: n, onRead }: NotificationRowProps) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function NotificationDropdown() {
-  const [open, setOpen] = useState(false);
+export interface NotificationDropdownProps {
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+  defaultOpen?: boolean;
+}
 
-  const { notifications, loading, fetched, fetchNotifications, markRead, markAllRead } =
-    useNotificationStore();
+export function NotificationDropdown({
+  isLoading: isLoadingProp,
+  error: errorProp,
+  onRetry,
+  defaultOpen = false,
+}: NotificationDropdownProps = {}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  const {
+    notifications,
+    loading: storeLoading,
+    error: storeError,
+    fetched,
+    fetchNotifications,
+    markRead,
+    markAllRead,
+  } = useNotificationStore();
+
+  const loading = isLoadingProp ?? storeLoading;
+  const activeError = errorProp ?? storeError;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -240,14 +262,45 @@ export function NotificationDropdown() {
           <div className="max-h-[420px] overflow-y-auto">
             {loading ? (
               /* Loading state */
-              <div className="flex justify-center py-10">
+              <div
+                role="status"
+                aria-label="Loading notifications"
+                data-testid="notifications-loading"
+                className="flex justify-center py-10"
+              >
                 <Loader2 className="h-5 w-5 animate-spin text-sorobanlard-primary" />
+              </div>
+            ) : activeError ? (
+              /* Error state */
+              <div
+                role="alert"
+                data-testid="notifications-error"
+                className="flex flex-col items-center gap-3 px-4 py-8 text-center"
+              >
+                <AlertCircle className="h-8 w-8 text-red-400" />
+                <div>
+                  <p className="text-sm font-medium text-white">
+                    Unable to load notifications
+                  </p>
+                  <p className="mt-1 text-xs text-white/60">{activeError}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => (onRetry ? onRetry() : fetchNotifications({ fallbackToMock: false }))}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition-colors"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Retry
+                </button>
               </div>
             ) : notifications.length === 0 ? (
               /* Empty state */
-              <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
+              <div
+                data-testid="notifications-empty"
+                className="flex flex-col items-center gap-3 px-4 py-10 text-center"
+              >
                 <Bell className="h-8 w-8 text-white/20" />
-                <p className="text-sm text-white/50">You're all caught up!</p>
+                <p className="text-sm text-white/50">You&apos;re all caught up!</p>
                 <p className="text-xs text-white/30">No notifications yet.</p>
               </div>
             ) : (
