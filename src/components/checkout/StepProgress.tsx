@@ -25,8 +25,8 @@ interface StepProgressProps {
 
 export function StepProgress({ currentStep, onStepClick, className }: StepProgressProps) {
   return (
-    <nav aria-label="Checkout progress" className={cn('w-full', className)}>
-      <ol className="flex items-center justify-center gap-0">
+    <nav aria-label="Checkout progress" className={cn('w-full max-w-full overflow-hidden', className)}>
+      <ol className="flex w-full min-w-0 items-center justify-between gap-0">
         {CHECKOUT_STEPS.map((step, index) => {
           // Derived purely from currentStep so going back always resets later
           // steps — there is no separate "completed" state that could go stale.
@@ -37,7 +37,7 @@ export function StepProgress({ currentStep, onStepClick, className }: StepProgre
           const indicator = (
             <span
               className={cn(
-                'flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition-all duration-300',
+                'flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-xs sm:text-sm font-semibold transition-all duration-300',
                 isCompleted &&
                   'bg-leaf-600 text-white shadow-md shadow-leaf-600/20',
                 isCurrent &&
@@ -47,7 +47,7 @@ export function StepProgress({ currentStep, onStepClick, className }: StepProgre
               aria-current={isCurrent ? 'step' : undefined}
             >
               {isCompleted ? (
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>
               ) : (
@@ -57,9 +57,9 @@ export function StepProgress({ currentStep, onStepClick, className }: StepProgre
           );
 
           return (
-            <li key={step.step} className="flex items-center flex-1">
+            <li key={step.step} className="flex min-w-0 items-center flex-1 last:flex-none">
               {/* Step indicator — clickable when completed and onStepClick is provided */}
-              <div className="flex flex-col items-center">
+              <div className="flex min-w-0 flex-col items-center text-center">
                 {isCompleted && onStepClick ? (
                   <button
                     type="button"
@@ -73,8 +73,9 @@ export function StepProgress({ currentStep, onStepClick, className }: StepProgre
                   indicator
                 )}
                 <span
+                  data-testid={`checkout-step-label-${step.step}`}
                   className={cn(
-                    'mt-1.5 text-[11px] font-medium uppercase tracking-[0.08em] transition-colors duration-300',
+                    'mt-1 sm:mt-1.5 max-w-[4.75rem] sm:max-w-none truncate text-[9px] sm:text-[11px] font-medium uppercase tracking-tight sm:tracking-[0.08em] transition-colors duration-300',
                     isCompleted && 'text-leaf-700',
                     isCurrent && 'text-sorobanlard-primary font-semibold',
                     isFuture && 'text-ink-400',
@@ -86,7 +87,7 @@ export function StepProgress({ currentStep, onStepClick, className }: StepProgre
 
               {/* Connector line */}
               {index < CHECKOUT_STEPS.length - 1 && (
-                <div className="mx-3 flex-1">
+                <div className="mx-1.5 sm:mx-3 flex-1 min-w-[0.75rem]">
                   <div
                     className={cn(
                       'h-0.5 rounded-full transition-all duration-500',

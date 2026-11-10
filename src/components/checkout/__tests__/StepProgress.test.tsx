@@ -64,4 +64,15 @@ describe('StepProgress', () => {
     // Step 3 should now show its number, not a checkmark
     expect(screen.getByText('3')).toBeInTheDocument();
   });
+
+  it('applies compact responsive sizing and label truncation on narrow viewports (#196)', () => {
+    render(<StepProgress currentStep={1} />);
+    const nav = screen.getByRole('navigation', { name: /Checkout progress/i });
+    expect(nav.className).toContain('overflow-hidden');
+
+    const label1 = screen.getByTestId('checkout-step-label-1');
+    expect(label1.className).toContain('truncate');
+    expect(label1.className).toContain('text-[9px]');
+    expect(label1.className).toContain('sm:text-[11px]');
+  });
 });
