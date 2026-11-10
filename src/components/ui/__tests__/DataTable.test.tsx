@@ -143,4 +143,12 @@ describe('DataTable stable sort (Issue #133)', () => {
 
     expect(firstRender).toEqual(secondRender);
   });
+
+  it('contains horizontal overflow within an accessible touch-scrollable region on mobile (#197)', () => {
+    render(<DataTable columns={mockColumns} data={mockData} />);
+    const scrollContainer = screen.getByTestId('datatable-scroll-container');
+    expect(scrollContainer).toHaveAttribute('role', 'region');
+    expect(scrollContainer.className).toContain('overflow-x-auto');
+    expect(scrollContainer.className).toContain('overscroll-x-contain');
+  });
 });

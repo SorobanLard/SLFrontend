@@ -90,9 +90,15 @@ export function DataTable<T>({
   }, [data, sortColumn, sortDirection]);
 
   return (
-    <div className={cn('w-full overflow-hidden rounded-2xl border border-[#D5D2F6] bg-white shadow-sm', className)}>
-      <div className="w-full overflow-x-auto">
-        <table className="w-full min-w-[600px] text-left text-sm text-[#26215C]">
+    <div className={cn('w-full max-w-full min-w-0 overflow-hidden rounded-2xl border border-[#D5D2F6] bg-white shadow-sm', className)}>
+      <div
+        data-testid="datatable-scroll-container"
+        role="region"
+        aria-label="Scrollable data table"
+        tabIndex={0}
+        className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+      >
+        <table className="w-full min-w-full sm:min-w-[600px] text-left text-xs sm:text-sm text-[#26215C]">
           <thead className="border-b border-[#EEEDFE] bg-[#F4F2FF] text-xs font-semibold uppercase tracking-wider text-[#5A5578]">
             <tr>
               {columns.map((col) => {
@@ -101,7 +107,11 @@ export function DataTable<T>({
                   <th
                     key={col.key}
                     scope="col"
-                    className={cn('px-6 py-4 transition-colors', col.className, col.sortable && 'cursor-pointer select-none hover:text-[#26215C]')}
+                    className={cn(
+                      'px-3 py-3 sm:px-6 sm:py-4 whitespace-nowrap transition-colors',
+                      col.className,
+                      col.sortable && 'cursor-pointer select-none hover:text-[#26215C]'
+                    )}
                     onClick={() => handleHeaderClick(col)}
                   >
                     <div className="flex items-center gap-2">
@@ -131,7 +141,7 @@ export function DataTable<T>({
               Array.from({ length: 5 }).map((_, rIdx) => (
                 <tr key={`skeleton-row-${rIdx}`} className="animate-pulse">
                   {columns.map((col, cIdx) => (
-                    <td key={`skeleton-cell-${rIdx}-${cIdx}`} className="px-6 py-4">
+                    <td key={`skeleton-cell-${rIdx}-${cIdx}`} className="px-3 py-3 sm:px-6 sm:py-4">
                       <div className="h-4 w-3/4 rounded-md bg-[#EEEDFE]" />
                     </td>
                   ))}
@@ -140,7 +150,7 @@ export function DataTable<T>({
             ) : sortedData.length === 0 ? (
               // Empty State
               <tr>
-                <td colSpan={columns.length} className="px-6 py-12 text-center">
+                <td colSpan={columns.length} className="px-4 py-10 sm:px-6 sm:py-12 text-center">
                   <div className="mx-auto flex max-w-sm flex-col items-center justify-center">
                     <div className="rounded-full bg-[#F4F2FF] p-4 text-[#7F77DD]">
                       <Inbox className="h-8 w-8" />
@@ -162,7 +172,7 @@ export function DataTable<T>({
                     {columns.map((col) => {
                       const val = (item as Record<string, unknown>)[col.key];
                       return (
-                        <td key={col.key} className={cn('px-6 py-4 font-normal', col.className)}>
+                        <td key={col.key} className={cn('px-3 py-3 sm:px-6 sm:py-4 font-normal', col.className)}>
                           {col.render ? col.render(item, rIdx) : val !== undefined && val !== null ? String(val) : '—'}
                         </td>
                       );
