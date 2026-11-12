@@ -49,17 +49,19 @@ function ToastCard({
   onDismiss: (id: string) => void;
 }) {
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [dragX, setDragX] = useState(0);
   const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
+    if (isPaused || isLeaving) return;
     const timer = window.setTimeout(() => {
       setIsLeaving(true);
       window.setTimeout(() => onDismiss(toast.id), 220);
     }, toast.duration);
 
     return () => window.clearTimeout(timer);
-  }, [onDismiss, toast.duration, toast.id]);
+  }, [isLeaving, isPaused, onDismiss, toast.duration, toast.id]);
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
     touchStartX.current = event.touches[0]?.clientX ?? null;
@@ -81,6 +83,12 @@ function ToastCard({
     touchStartX.current = null;
   }, [dragX, onDismiss, toast.id]);
 
+  const handleBlur = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsPaused(false);
+    }
+  }, []);
+
   const accent = {
     success: 'border-emerald-300 bg-emerald-50 text-emerald-900',
     error: 'border-rose-300 bg-rose-50 text-rose-900',
@@ -88,9 +96,21 @@ function ToastCard({
     info: 'border-[#D5D2F6] bg-[#F4F2FF] text-[#26215C]',
   }[toast.variant];
 
+  const titleId = `toast-title-${toast.id}`;
+  const descId = toast.description ? `toast-desc-${toast.id}` : undefined;
+
   return (
     <div
+      data-toast-id={toast.id}
       role={toast.role}
+      aria-live={toast.role === 'alert' ? 'assertive' : 'polite'}
+      aria-atomic="true"
+      aria-labelledby={titleId}
+      aria-describedby={descId}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocus={() => setIsPaused(true)}
+      onBlur={handleBlur}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -103,13 +123,15 @@ function ToastCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">{toast.title}</p>
-          {toast.description ? <p className="mt-1 text-sm leading-6 opacity-90">{toast.description}</p> : null}
+          <p id={titleId} className="text-sm font-semibold">{toast.title}</p>
+          {toast.description ? (
+            <p id={descId} className="mt-1 text-sm leading-6 opacity-90">{toast.description}</p>
+          ) : null}
         </div>
         <button
           type="button"
-          className="rounded-full p-1 transition hover:bg-black/5"
-          aria-label="Dismiss notification"
+          className="rounded-full p-1 transition hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+          aria-label={`Dismiss notification: ${toast.title}`}
           onClick={() => {
             setIsLeaving(true);
             window.setTimeout(() => onDismiss(toast.id), 180);
@@ -128,6 +150,28 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const dismiss = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
+
+  const visibleToasts = useMemo(() => toasts.slice(0, MAX_VISIBLE_TOASTS), [toasts]);
+
+  useEffect(() => {
+    if (visibleToasts.length === 0) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const focusedToastEl =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement.closest<HTMLElement>('[data-toast-id]')
+          : null;
+      const focusedId = focusedToastEl?.dataset.toastId;
+      if (focusedId) {
+        dismiss(focusedId);
+        return;
+      }
+      const latestVisible = visibleToasts[visibleToasts.length - 1];
+      if (latestVisible) dismiss(latestVisible.id);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dismiss, visibleToasts]);
 
   const push = useCallback(
     ({ title, description, duration = 4000, variant = 'info', role }: ToastOptions & { variant?: ToastVariant; role?: ToastRole }) => {
@@ -148,16 +192,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     [dismiss, error, info, push, success, toasts, warning],
   );
 
-  const visibleToasts = toasts.slice(0, MAX_VISIBLE_TOASTS);
-
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-3" aria-live="polite" aria-label="Notifications">
+      <section
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-label="Notifications"
+        className="pointer-events-none fixed right-4 top-4 z-[80] flex flex-col gap-3"
+      >
         {visibleToasts.map((toast) => (
           <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
         ))}
-      </div>
+      </section>
     </ToastContext.Provider>
   );
 }
