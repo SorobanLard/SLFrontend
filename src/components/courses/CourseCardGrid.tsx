@@ -150,8 +150,13 @@ export function CourseCardGrid({
       ref={containerRef}
       className="relative w-full"
       style={{ height: totalHeight }}
+      role="region"
+      aria-label="Course catalog"
+      aria-busy={loading}
     >
       <div
+        role="list"
+        aria-label={loading ? 'Loading courses' : 'Courses'}
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
         style={{
           position: 'absolute',
@@ -161,14 +166,19 @@ export function CourseCardGrid({
         }}
       >
         {loading
-          ? visibleItems.map((i) => <CourseCardSkeleton key={i} />)
+          ? visibleItems.map((i) => (
+              <div key={i} role="listitem" data-course-card>
+                <CourseCardSkeleton />
+              </div>
+            ))
           : (visibleItems as Course[]).map((course, index) => (
-              <CourseCard
-                key={course.id}
-                course={course}
-                priority={startIndex + index < aboveFoldCount}
-                imageSizes={THUMBNAIL_SIZES}
-              />
+              <div key={course.id} role="listitem" data-course-card>
+                <CourseCard
+                  course={course}
+                  priority={startIndex + index < aboveFoldCount}
+                  imageSizes={THUMBNAIL_SIZES}
+                />
+              </div>
             ))}
       </div>
     </div>
