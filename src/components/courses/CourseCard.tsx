@@ -31,6 +31,7 @@ interface Props {
   showProgress?: number;
   priority?: boolean;
   freeCta?: boolean;
+  imageSizes?: string;
 }
 
 function CourseCardComponent({
@@ -39,6 +40,7 @@ function CourseCardComponent({
   showProgress,
   priority = false,
   freeCta = false,
+  imageSizes,
 }: Props) {
   const dest = href ?? `/dashboard/courses/${course.id}`;
   const mins = courseTotalMins(course.totalDuration ?? 0);
@@ -98,8 +100,13 @@ function CourseCardComponent({
   }, []);
 
   return (
-    <Link href={dest} className="group block relative">
+    <Link
+      href={dest}
+      aria-label={`View course: ${course.title}`}
+      className="group block relative rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sorobanlard-primary focus-visible:ring-offset-2"
+    >
       <article
+        data-course-card
         className={cn(
           'card overflow-hidden transition-all duration-200',
           isHovered && 'shadow-lifted -translate-y-0.5',
@@ -114,15 +121,19 @@ function CourseCardComponent({
               src={course.thumbnailUrl}
               alt={`${course.title} course thumbnail`}
               fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+              sizes={imageSizes ?? "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"}
               className="object-cover group-hover:scale-105 transition-transform duration-300"
               priority={priority}
               placeholder="blur"
               blurDataURL={BLUR_DATA_URL}
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-4xl">
+            <div
+              className="absolute inset-0 flex items-center justify-center"
+              role="img"
+              aria-label={`${course.category || 'Course'} category thumbnail`}
+            >
+              <span className="text-4xl" aria-hidden="true">
                 {course.category === 'Tailoring'       ? '🧵' :
                  course.category === 'Baking'          ? '🍰' :
                  course.category === 'Photography'     ? '📷' :
@@ -155,10 +166,15 @@ function CourseCardComponent({
             type="button"
             onClick={toggleWishlist}
             aria-pressed={isWishlisted}
-            aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+            aria-label={
+              isWishlisted
+                ? `Remove from wishlist: ${course.title}`
+                : `Add to wishlist: ${course.title}`
+            }
             className="absolute top-2.5 right-2.5 p-1.5 rounded-full bg-white/90 hover:bg-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-sorobanlard-primary"
           >
             <Heart
+              aria-hidden="true"
               className={cn(
                 'w-4 h-4 transition-colors',
                 isWishlisted ? 'fill-rose-500 text-rose-500' : 'text-gray-400',
@@ -168,7 +184,10 @@ function CourseCardComponent({
 
           {/* Preview video overlay */}
           {course.previewVideoUrl && (
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+              aria-hidden="true"
+            >
               <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
                 <div className="w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[10px] border-l-ink-800 ml-1" />
               </div>
@@ -193,6 +212,7 @@ function CourseCardComponent({
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Star
                     key={star}
+                    aria-hidden="true"
                     className={cn(
                       'w-3.5 h-3.5',
                       star <= Math.round(rating)
@@ -211,12 +231,12 @@ function CourseCardComponent({
           {/* Duration + students */}
           <div className="flex items-center gap-3 text-xs text-ink-500 mb-3">
             <span className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
+              <Clock aria-hidden="true" className="w-3.5 h-3.5" />
               {mins}
             </span>
             {course.studentCount != null && (
               <span className="flex items-center gap-1">
-                <Users className="w-3.5 h-3.5" />
+                <Users aria-hidden="true" className="w-3.5 h-3.5" />
                 {course.studentCount.toLocaleString()}
               </span>
             )}
