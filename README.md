@@ -498,3 +498,8 @@ TODO: Add and Configure robots.txt
 298. [ ] Public pages are allowed.
 299. [ ] "https://sorobanlard.com/sitemap.xml" is included.
 300. [ ] PR description contains "Closes #[issue_id]" and the task is ready for review.
+
+## Handsoff notes
+
+<!-- handsoff-issue-239 -->
+- #239: E2E: add Playwright coverage for Certificate public verification page
