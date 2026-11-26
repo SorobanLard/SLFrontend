@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { Bell, Shield, Save, Loader2, Trash2, CreditCard, ChevronRight } from 'lucide-react';
 import { Breadcrumb } from '@/components/ui';
 import DeleteAccountModal from '@/components/auth/DeleteAccountModal';
-import { Bell, Shield, Save, Loader2, Zap } from 'lucide-react';
-import { Breadcrumb } from '@/components/ui';
 import { TwoFactorSetup } from '@/components/auth/TwoFactorSetup';
-import { twoFactorApi } from '@/lib/api/services';
+import { twoFactorApi, usersApi } from '@/lib/api/services';
+import { useToast } from '@/lib/hooks/use-toast';
+import { useReducedMotion } from '@/lib/hooks/use-reduced-motion';
 
 export default function SettingsPage() {
   const toast = useToast();
