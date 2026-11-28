@@ -509,3 +509,12 @@ TODO: Add and Configure robots.txt
 
 <!-- handsoff-issue-248 -->
 - #248: Add unit/component tests for CoursePreviewModal (src/components/courses/CoursePreviewModal.tsx)
+
+<!-- handsoff-issue-376 -->
+- #376: Add unit/component tests for ReviewsList (src/components/Reviews/ReviewsList.tsx)
+
+<!-- handsoff-issue-239 -->
+- #239: E2E: add Playwright coverage for Certificate public verification page
+
+<!-- handsoff-issue-363 -->
+- #363: Add unit/component tests for VideoPlayer (src/components/learn/VideoPlayer.tsx)

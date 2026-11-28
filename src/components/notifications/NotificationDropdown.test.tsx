@@ -20,6 +20,8 @@ vi.mock('@/lib/api/services', () => ({
 }));
 
 const listMock = notificationsApi.list as unknown as Mock<() => Promise<unknown>>;
+const markReadMock = notificationsApi.markRead as unknown as Mock;
+const markAllReadMock = notificationsApi.markAllRead as unknown as Mock;
 
 const mockNotifications: Notification[] = [
   {
@@ -120,5 +122,38 @@ describe('NotificationDropdown', () => {
     expect(within(panel).getByText('Course Completed')).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: /mark all read/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /1 unread/i })).toBeInTheDocument();
+  });
+
+  it('marks a single notification as read when its row is clicked', async () => {
+    listMock.mockResolvedValueOnce(mockNotifications);
+
+    render(<NotificationDropdown />);
+    const panel = openPanel();
+
+    fireEvent.click(await within(panel).findByText('Enrollment Confirmed'));
+
+    expect(markReadMock).toHaveBeenCalledWith('1');
+  });
+
+  it('marks all notifications as read when the mark-all-read action is clicked', async () => {
+    listMock.mockResolvedValueOnce(mockNotifications);
+
+    render(<NotificationDropdown />);
+    const panel = openPanel();
+
+    fireEvent.click(await within(panel).findByRole('button', { name: /mark all read/i }));
+
+    expect(markAllReadMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the panel when the trigger is clicked again', async () => {
+    listMock.mockResolvedValueOnce(mockNotifications);
+
+    render(<NotificationDropdown />);
+    openPanel();
+
+    fireEvent.click(screen.getByRole('button', { name: /^notifications/i }));
+
+    expect(screen.queryByRole('dialog', { name: /notifications panel/i })).not.toBeInTheDocument();
   });
 });
