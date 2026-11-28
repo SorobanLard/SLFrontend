@@ -498,3 +498,14 @@ TODO: Add and Configure robots.txt
 298. [ ] Public pages are allowed.
 299. [ ] "https://sorobanlard.com/sitemap.xml" is included.
 300. [ ] PR description contains "Closes #[issue_id]" and the task is ready for review.
+
+## Handsoff notes
+
+<!-- handsoff-issue-246 -->
+- #246: Add unit/component tests for FilterSidebar (src/components/courses/FilterSidebar.tsx)
+
+<!-- handsoff-issue-247 -->
+- #247: Add unit/component tests for CurriculumAccordion (src/components/courses/CurriculumAccordion.tsx)
+
+<!-- handsoff-issue-248 -->
+- #248: Add unit/component tests for CoursePreviewModal (src/components/courses/CoursePreviewModal.tsx)

@@ -17,8 +17,23 @@ import { Header } from './Header';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
+const mocks = vi.hoisted(() => ({
+  pathname: '/',
+  isConnected: false,
+  user: null as null | {
+    name: string;
+    email: string;
+    stellarAddress: string;
+    avatarUrl: string | null;
+  },
+  cartCount: 0,
+  logout: vi.fn(),
+  getCategories: vi.fn().mockResolvedValue([]),
+  listCourses: vi.fn().mockResolvedValue({ data: [] }),
+}));
+
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/',
+  usePathname: () => mocks.pathname,
   useRouter: () => ({ prefetch: vi.fn(), push: vi.fn() }),
 }));
 
@@ -41,23 +56,28 @@ vi.mock('next/link', () => ({
 }));
 
 vi.mock('@/lib/hooks/use-auth-store', () => ({
-  useAuthStore: () => ({ isConnected: false, user: null, logout: vi.fn() }),
+  useAuthStore: () => ({
+    isConnected: mocks.isConnected,
+    user: mocks.user,
+    logout: mocks.logout,
+  }),
 }));
 
 vi.mock('@/lib/hooks/use-cart-store', () => ({
-  useCartStore: () => 0,
+  useCartStore: (selector: (state: { getItemCount: () => number }) => number) =>
+    selector({ getItemCount: () => mocks.cartCount }),
   useCartHydrated: () => true,
 }));
 
 vi.mock('@/lib/api/services', () => ({
   coursesApi: {
-    getCategories: () => Promise.resolve([]),
-    list: () => Promise.resolve({ data: [] }),
+    getCategories: mocks.getCategories,
+    list: mocks.listCourses,
   },
 }));
 
 vi.mock('@/components/notifications/NotificationDropdown', () => ({
-  NotificationDropdown: () => null,
+  NotificationDropdown: () => <div>Notifications</div>,
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,6 +95,12 @@ function getDrawer() {
 describe('Header – mobile menu disclosure semantics', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.pathname = '/';
+    mocks.isConnected = false;
+    mocks.user = null;
+    mocks.cartCount = 0;
+    mocks.getCategories.mockResolvedValue([]);
+    mocks.listCourses.mockResolvedValue({ data: [] });
   });
 
   it('renders the hamburger as a <button> with type="button"', () => {
@@ -183,5 +209,79 @@ describe('Header – mobile menu disclosure semantics', () => {
     await user.click(catToggle);
     expect(catToggle).toHaveAttribute('aria-expanded', 'true');
     expect(document.getElementById('mobile-category-menu')).not.toBeNull();
+  });
+
+  it('shows guest actions and marks the matching navigation route as current', () => {
+    mocks.pathname = '/teach';
+    render(<Header />);
+
+    expect(screen.getByRole('link', { name: 'Log in' })).toHaveAttribute(
+      'href',
+      '/login',
+    );
+    expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute(
+      'href',
+      '/signup',
+    );
+    expect(
+      screen.getByRole('link', { name: 'Teach on SorobanLard' }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Team Plans' })).not.toHaveAttribute(
+      'aria-current',
+    );
+  });
+
+  it('shows the signed-in user menu and logs out when requested', async () => {
+    const user = userEvent.setup();
+    mocks.isConnected = true;
+    mocks.user = {
+      name: 'Ada Learner',
+      email: 'ada@example.com',
+      stellarAddress: 'GABC',
+      avatarUrl: null,
+    };
+
+    render(<Header />);
+
+    expect(screen.getAllByText('Notifications')).toHaveLength(2);
+    expect(
+      screen.getByRole('link', { name: 'Shopping cart with 0 items' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'User menu' }));
+    expect(screen.getByText('Ada Learner')).toBeInTheDocument();
+    expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('menuitem', { name: 'Log out' }));
+    expect(mocks.logout).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('announces the signed-in cart count and caps its visible badge at nine plus', () => {
+    mocks.isConnected = true;
+    mocks.cartCount = 12;
+
+    render(<Header />);
+
+    expect(
+      screen.getByRole('link', { name: 'Shopping cart with 12 items' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('9+')).toBeInTheDocument();
+  });
+
+  it('uses categories returned by the API in the mobile category menu', async () => {
+    const user = userEvent.setup();
+    mocks.getCategories.mockResolvedValue([{ name: 'Tailoring' }]);
+    render(<Header />);
+
+    await user.click(getHamburger());
+    await user.click(within(getDrawer()).getByRole('button', { name: /categories/i }));
+
+    const tailoring = await within(getDrawer()).findByRole('button', {
+      name: /tailoring/i,
+    });
+    expect(tailoring).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      within(getDrawer()).getByRole('link', { name: 'All Tailoring courses' }),
+    ).toHaveAttribute('href', '/categories/tailoring');
   });
 });
