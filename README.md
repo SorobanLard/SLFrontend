@@ -509,3 +509,6 @@ TODO: Add and Configure robots.txt
 
 <!-- handsoff-issue-248 -->
 - #248: Add unit/component tests for CoursePreviewModal (src/components/courses/CoursePreviewModal.tsx)
+
+<!-- handsoff-issue-376 -->
+- #376: Add unit/component tests for ReviewsList (src/components/Reviews/ReviewsList.tsx)
