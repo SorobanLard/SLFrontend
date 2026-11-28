@@ -501,5 +501,14 @@ TODO: Add and Configure robots.txt
 
 ## Handsoff notes
 
+<!-- handsoff-issue-246 -->
+- #246: Add unit/component tests for FilterSidebar (src/components/courses/FilterSidebar.tsx)
+
+<!-- handsoff-issue-247 -->
+- #247: Add unit/component tests for CurriculumAccordion (src/components/courses/CurriculumAccordion.tsx)
+
+<!-- handsoff-issue-248 -->
+- #248: Add unit/component tests for CoursePreviewModal (src/components/courses/CoursePreviewModal.tsx)
+
 <!-- handsoff-issue-376 -->
 - #376: Add unit/component tests for ReviewsList (src/components/Reviews/ReviewsList.tsx)
