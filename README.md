@@ -512,3 +512,6 @@ TODO: Add and Configure robots.txt
 
 <!-- handsoff-issue-376 -->
 - #376: Add unit/component tests for ReviewsList (src/components/Reviews/ReviewsList.tsx)
+
+<!-- handsoff-issue-239 -->
+- #239: E2E: add Playwright coverage for Certificate public verification page
