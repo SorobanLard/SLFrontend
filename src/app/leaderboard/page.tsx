@@ -19,6 +19,7 @@ export default function LeaderboardPage() {
   const { user } = useAuthStore();
 
   const [period, setPeriod] = useState<LeaderboardPeriod>('week');
+  const [retryCount, setRetryCount] = useState(0);
   const [data, setData]     = useState<LeaderboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState<string | null>(null);
@@ -31,7 +32,7 @@ export default function LeaderboardPage() {
       .then(setData)
       .catch(() => setError('Failed to load leaderboard. Please try again.'))
       .finally(() => setLoading(false));
-  }, [period]);
+  }, [period, retryCount]);
 
   // Derive current-user entry from API response or inject a placeholder
   const currentUserEntry: LeaderboardEntry | null =
@@ -122,7 +123,7 @@ export default function LeaderboardPage() {
             <button
               type="button"
               className="btn-secondary mt-4 text-sm"
-              onClick={() => setPeriod((p) => p)}
+              onClick={() => setRetryCount((count) => count + 1)}
             >
               Retry
             </button>
